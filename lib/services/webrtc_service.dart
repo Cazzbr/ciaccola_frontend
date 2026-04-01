@@ -1,0 +1,120 @@
+import 'dart:async';
+import 'dart:convert';
+import 'package:flutter_webrtc/flutter_webrtc.dart';
+
+class WebRtcService {
+  RTCPeerConnection? _peerConnection;
+  RTCDataChannel? _dataChannel;
+
+  final _messageController = StreamController<Map<String, dynamic>>.broadcast();
+  final _stateController = StreamController<RTCPeerConnectionState>.broadcast();
+  final _candidateController = StreamController<RTCIceCandidate>.broadcast();
+  final _channelStateController = StreamController<RTCDataChannelState>.broadcast();
+
+  Stream<Map<String, dynamic>> get onMessage => _messageController.stream;
+  Stream<RTCPeerConnectionState> get onState => _stateController.stream;
+  Stream<RTCIceCandidate> get onCandidate => _candidateController.stream;
+  Stream<RTCDataChannelState> get onChannelState => _channelStateController.stream;
+
+  bool get isReady => _dataChannel?.state == RTCDataChannelState.RTCDataChannelOpen;
+
+  Future<void> init({bool createDataChannel = true}) async {
+    _peerConnection = await createPeerConnection({
+      'iceServers': [
+        {'urls': 'stun:stun.l.google.com:19302'},
+      ],
+    });
+
+    _peerConnection!.onIceCandidate = (candidate) {
+      _candidateController.add(candidate);
+        };
+
+    _peerConnection!.onConnectionState = (state) {
+      _stateController.add(state);
+    };
+
+    _peerConnection!.onDataChannel = (channel) {
+      _attachDataChannel(channel);
+    };
+
+    if (createDataChannel) {
+      final channel = await _peerConnection!.createDataChannel(
+        'messages',
+        RTCDataChannelInit()..ordered = true,
+      );
+      _attachDataChannel(channel);
+    }
+  }
+
+  void _attachDataChannel(RTCDataChannel channel) {
+    _dataChannel = channel;
+    _channelStateController.add(channel.state!);
+    channel.onDataChannelState = (state) {
+      _channelStateController.add(state);
+    };
+    channel.onMessage = (message) {
+      final raw = message.text;
+      try {
+        final decoded = jsonDecode(raw) as Map<String, dynamic>;
+        _messageController.add(decoded);
+      } catch (_) {
+        _messageController.add({'type': 'text', 'text': raw});
+      }
+    };
+  }
+
+  Future<Map<String, dynamic>> createOffer() async {
+    final offer = await _peerConnection!.createOffer();
+    await _peerConnection!.setLocalDescription(offer);
+    return {'sdp': offer.sdp, 'type': offer.type};
+  }
+
+  Future<void> applyRemoteOffer(Map<String, dynamic> data) async {
+    await _peerConnection!.setRemoteDescription(
+      RTCSessionDescription(data['sdp']?.toString(), data['type']?.toString()),
+    );
+  }
+
+  Future<Map<String, dynamic>> createAnswer() async {
+    final answer = await _peerConnection!.createAnswer();
+    await _peerConnection!.setLocalDescription(answer);
+    return {'sdp': answer.sdp, 'type': answer.type};
+  }
+
+  Future<void> applyRemoteAnswer(Map<String, dynamic> data) async {
+    await _peerConnection!.setRemoteDescription(
+      RTCSessionDescription(data['sdp']?.toString(), data['type']?.toString()),
+    );
+  }
+
+  Future<void> addRemoteCandidate(Map<String, dynamic> data) async {
+    final candidate = data['candidate'] as Map<String, dynamic>;
+    await _peerConnection!.addCandidate(
+      RTCIceCandidate(
+        candidate['candidate']?.toString(),
+        candidate['sdpMid']?.toString(),
+        candidate['sdpMLineIndex'] as int?,
+      ),
+    );
+  }
+
+  Future<void> sendJson(Map<String, dynamic> payload) async {
+    if (_dataChannel?.state == RTCDataChannelState.RTCDataChannelOpen) {
+      await _dataChannel!.send(RTCDataChannelMessage(jsonEncode(payload)));
+    } else {
+      throw Exception('Data channel not open');
+    }
+  }
+
+  Future<void> close() async {
+    await _dataChannel?.close();
+    await _peerConnection?.close();
+  }
+
+  void dispose() {
+    _messageController.close();
+    _stateController.close();
+    _candidateController.close();
+    _channelStateController.close();
+  }
+}
