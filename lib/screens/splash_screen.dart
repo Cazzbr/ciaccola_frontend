@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:ciaccola_frontend/screens/login_screen.dart';
-import 'package:ciaccola_frontend/screens/contacts_screen.dart';
+import 'package:ciaccola_frontend/screens/home_screen.dart';
 import 'package:ciaccola_frontend/services/auth_service.dart';
 import 'package:ciaccola_frontend/services/secure_storage_service.dart';
 
@@ -29,7 +29,7 @@ class _SplashScreenState extends State<SplashScreen> {
       if (token != null) {
         if (!mounted) return;
         Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (_) => ContactsScreen(token: token)),
+          MaterialPageRoute(builder: (_) => HomeScreen(token: token)),
         );
         return;
       }
@@ -42,8 +42,22 @@ class _SplashScreenState extends State<SplashScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return const Scaffold(
-      body: Center(child: CircularProgressIndicator()),
+    return Scaffold(
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Image.asset(
+              'lib/assets/ciaccola_app_icon.png',
+              height: 140,
+            ),
+            const SizedBox(height: 32),
+            const CircularProgressIndicator(
+              valueColor: AlwaysStoppedAnimation(Color(0xFF00CED1)),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

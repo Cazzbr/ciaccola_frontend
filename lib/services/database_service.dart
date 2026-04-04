@@ -84,4 +84,12 @@ class DatabaseService {
       whereArgs: [messageId],
     );
   }
+
+  Future<List<String>> getChatContactIds() async {
+    final db = await database;
+    final rows = await db.rawQuery('''
+      SELECT DISTINCT contactId FROM $messagesTable WHERE deleted = 0
+    ''');
+    return rows.map((row) => row['contactId'] as String).toList();
+  }
 }

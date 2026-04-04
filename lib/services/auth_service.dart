@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:ciaccola_frontend/configs/api_config.dart';
 import 'package:ciaccola_frontend/services/secure_storage_service.dart';
+import 'package:ciaccola_frontend/models/user.dart';
 
 class AuthService {
   Future<String> login({required String username, required String password}) async {
@@ -19,6 +20,33 @@ class AuthService {
     final token = data['token']?.toString();
     if (token == null || token.isEmpty) {
       throw Exception('Token missing in login response');
+    }
+
+    await SecureStorageService.saveToken(token);
+    return token;
+  }
+
+  Future<String> register({required String username, required String password, String? email}) async {
+    final body = {
+      'username': username,
+      'password': password,
+      if (email != null && email.isNotEmpty) 'email': email,
+    };
+
+    final response = await http.post(
+      Uri.parse('${ApiConfig.baseHttpUrl}${ApiConfig.registerPath}'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode(body),
+    );
+
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw Exception('Registration failed: ${response.statusCode} - ${response.body}');
+    }
+
+    final data = jsonDecode(response.body) as Map<String, dynamic>;
+    final token = data['token']?.toString();
+    if (token == null || token.isEmpty) {
+      throw Exception('Token missing in registration response');
     }
 
     await SecureStorageService.saveToken(token);
@@ -65,5 +93,63 @@ class AuthService {
 
   Future<void> logout() async {
     await SecureStorageService.deleteToken();
+  }
+
+  Future<User> getProfile(String token) async {
+    final response = await http.get(
+      Uri.parse('${ApiConfig.baseHttpUrl}${ApiConfig.profilePath}'),
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+    );
+
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw Exception('Failed to get profile: ${response.statusCode} - ${response.body}');
+    }
+
+    final data = jsonDecode(response.body) as Map<String, dynamic>;
+    return User.fromJson(data);
+  }
+
+  Future<User> updateProfile(String token, {
+    String? username,
+    String? email,
+    String? password,
+  }) async {
+    final body = <String, dynamic>{};
+    if (username != null) body['username'] = username;
+    if (email != null) body['email'] = email;
+    if (password != null) body['password'] = password;
+
+    final response = await http.put(
+      Uri.parse('${ApiConfig.baseHttpUrl}${ApiConfig.profilePath}'),
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode(body),
+    );
+
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw Exception('Failed to update profile: ${response.statusCode} - ${response.body}');
+    }
+
+    final data = jsonDecode(response.body) as Map<String, dynamic>;
+    return User.fromJson(data);
+  }
+
+  Future<void> deleteProfile(String token) async {
+    final response = await http.delete(
+      Uri.parse('${ApiConfig.baseHttpUrl}${ApiConfig.profilePath}'),
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+    );
+
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw Exception('Failed to delete profile: ${response.statusCode} - ${response.body}');
+    }
   }
 }

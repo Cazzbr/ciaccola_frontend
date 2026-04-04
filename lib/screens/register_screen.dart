@@ -1,31 +1,53 @@
 import 'package:flutter/material.dart';
 import 'package:ciaccola_frontend/screens/home_screen.dart';
-import 'package:ciaccola_frontend/screens/register_screen.dart';
 import 'package:ciaccola_frontend/services/auth_service.dart';
 
-class LoginScreen extends StatefulWidget {
-  const LoginScreen({super.key});
+class RegisterScreen extends StatefulWidget {
+  const RegisterScreen({super.key});
 
   @override
-  State<LoginScreen> createState() => _LoginScreenState();
+  State<RegisterScreen> createState() => _RegisterScreenState();
 }
 
-class _LoginScreenState extends State<LoginScreen> {
+class _RegisterScreenState extends State<RegisterScreen> {
   final _usernameController = TextEditingController();
+  final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
+  final _confirmPasswordController = TextEditingController();
   final _authService = AuthService();
   bool _loading = false;
   String? _error;
 
-  Future<void> _login() async {
+  Future<void> _register() async {
+    final username = _usernameController.text.trim();
+    final email = _emailController.text.trim();
+    final password = _passwordController.text;
+    final confirmPassword = _confirmPasswordController.text;
+
+    if (username.isEmpty || password.isEmpty || confirmPassword.isEmpty) {
+      setState(() {
+        _error = 'Please fill all required fields.';
+      });
+      return;
+    }
+
+    if (password != confirmPassword) {
+      setState(() {
+        _error = 'Passwords do not match.';
+      });
+      return;
+    }
+
     setState(() {
       _loading = true;
       _error = null;
     });
+
     try {
-      final token = await _authService.login(
-        username: _usernameController.text.trim(),
-        password: _passwordController.text,
+      final token = await _authService.register(
+        username: username,
+        password: password,
+        email: email.isEmpty ? null : email,
       );
       if (!mounted) return;
       Navigator.of(context).pushReplacement(
@@ -42,6 +64,7 @@ class _LoginScreenState extends State<LoginScreen> {
   void dispose() {
     _usernameController.dispose();
     _passwordController.dispose();
+    _confirmPasswordController.dispose();
     super.dispose();
   }
 
@@ -55,14 +78,12 @@ class _LoginScreenState extends State<LoginScreen> {
             child: Column(
               children: [
                 const SizedBox(height: 24),
-                // Logo
                 Image.asset(
                   'lib/assets/ciaccola_app_logo.png',
                   height: 250,
                   fit: BoxFit.contain,
                 ),
-                const SizedBox(height: 48),
-                // Form Card
+                const SizedBox(height: 32),
                 Container(
                   padding: const EdgeInsets.all(24),
                   decoration: BoxDecoration(
@@ -75,7 +96,6 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                   child: Column(
                     children: [
-                      // Username field
                       SizedBox(
                         height: 60,
                         child: TextField(
@@ -88,7 +108,19 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                       ),
                       const SizedBox(height: 16),
-                      // Password field
+                      SizedBox(
+                        height: 60,
+                        child: TextField(
+                          controller: _emailController,
+                          decoration: const InputDecoration(
+                            labelText: 'Email (optional)',
+                            prefixIcon: Icon(Icons.email),
+                            contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                          ),
+                          keyboardType: TextInputType.emailAddress,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
                       SizedBox(
                         height: 60,
                         child: TextField(
@@ -101,8 +133,20 @@ class _LoginScreenState extends State<LoginScreen> {
                           ),
                         ),
                       ),
+                      const SizedBox(height: 16),
+                      SizedBox(
+                        height: 60,
+                        child: TextField(
+                          controller: _confirmPasswordController,
+                          obscureText: true,
+                          decoration: const InputDecoration(
+                            labelText: 'Confirm Password',
+                            prefixIcon: Icon(Icons.lock_outline),
+                            contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                          ),
+                        ),
+                      ),
                       const SizedBox(height: 24),
-                      // Error message
                       if (_error != null)
                         Padding(
                           padding: const EdgeInsets.only(bottom: 16),
@@ -121,12 +165,11 @@ class _LoginScreenState extends State<LoginScreen> {
                             ),
                           ),
                         ),
-                      // Login button
                       SizedBox(
                         width: double.infinity,
                         height: 48,
                         child: FilledButton(
-                          onPressed: _loading ? null : _login,
+                          onPressed: _loading ? null : _register,
                           style: FilledButton.styleFrom(
                             backgroundColor: const Color(0xFF1E40AF),
                             shape: RoundedRectangleBorder(
@@ -143,7 +186,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                   ),
                                 )
                               : const Text(
-                                  'Login',
+                                  'Create Account',
                                   style: TextStyle(
                                     fontSize: 16,
                                     fontWeight: FontWeight.bold,
@@ -151,18 +194,10 @@ class _LoginScreenState extends State<LoginScreen> {
                                 ),
                         ),
                       ),
-                      const SizedBox(height: 12),
+                      const SizedBox(height: 16),
                       TextButton(
-                        onPressed: _loading
-                            ? null
-                            : () {
-                                Navigator.of(context).push(
-                                  MaterialPageRoute(
-                                    builder: (_) => const RegisterScreen(),
-                                  ),
-                                );
-                              },
-                        child: const Text('Create a new account'),
+                        onPressed: _loading ? null : () => Navigator.pop(context),
+                        child: const Text('Back to Login'),
                       ),
                     ],
                   ),
