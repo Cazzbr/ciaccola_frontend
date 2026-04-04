@@ -17,7 +17,6 @@ class _ConfigurationsScreenState extends State<ConfigurationsScreen> {
   bool _loading = true;
   String? _error;
 
-  final _usernameController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
@@ -30,7 +29,6 @@ class _ConfigurationsScreenState extends State<ConfigurationsScreen> {
 
   @override
   void dispose() {
-    _usernameController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
@@ -43,8 +41,6 @@ class _ConfigurationsScreenState extends State<ConfigurationsScreen> {
       if (mounted) {
         setState(() {
           _user = user;
-          _usernameController.text = user.username;
-          _emailController.text = user.email ?? '';
           _loading = false;
         });
       }
@@ -61,17 +57,9 @@ class _ConfigurationsScreenState extends State<ConfigurationsScreen> {
   Future<void> _updateProfile() async {
     if (_user == null) return;
 
-    final username = _usernameController.text.trim();
     final email = _emailController.text.trim();
     final password = _passwordController.text.trim();
     final confirmPassword = _confirmPasswordController.text.trim();
-
-    if (username.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Username cannot be empty')),
-      );
-      return;
-    }
 
     if (password.isNotEmpty && password != confirmPassword) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -83,7 +71,6 @@ class _ConfigurationsScreenState extends State<ConfigurationsScreen> {
     try {
       final updatedUser = await _authService.updateProfile(
         widget.token,
-        username: username != _user!.username ? username : null,
         email: email != (_user!.email ?? '') ? email : null,
         password: password.isNotEmpty ? password : null,
       );
@@ -101,6 +88,8 @@ class _ConfigurationsScreenState extends State<ConfigurationsScreen> {
             backgroundColor: Colors.green,
           ),
         );
+
+        Navigator.of(context).pop();
       }
     } catch (e) {
       if (mounted) {
@@ -109,6 +98,62 @@ class _ConfigurationsScreenState extends State<ConfigurationsScreen> {
         );
       }
     }
+  }
+
+  void _showEditProfileDialog() {
+    _emailController.text = _user?.email ?? '';
+    _passwordController.clear();
+    _confirmPasswordController.clear();
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Edit Profile'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextFormField(
+                controller: _emailController,
+                decoration: const InputDecoration(
+                  labelText: 'Email',
+                  border: OutlineInputBorder(),
+                ),
+                keyboardType: TextInputType.emailAddress,
+              ),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: _passwordController,
+                decoration: const InputDecoration(
+                  labelText: 'New Password (leave empty to keep current)',
+                  border: OutlineInputBorder(),
+                ),
+                obscureText: true,
+              ),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: _confirmPasswordController,
+                decoration: const InputDecoration(
+                  labelText: 'Confirm New Password',
+                  border: OutlineInputBorder(),
+                ),
+                obscureText: true,
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: _updateProfile,
+            child: const Text('Save Changes'),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _deleteAccount() async {
@@ -206,85 +251,68 @@ class _ConfigurationsScreenState extends State<ConfigurationsScreen> {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          const Text(
-            'Profile Information',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 16),
-
-          // Username
-          TextFormField(
-            controller: _usernameController,
-            decoration: const InputDecoration(
-              labelText: 'Username',
-              border: OutlineInputBorder(),
+          // Profile Section
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Profile Information',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 16),
+                  
+                  // Username
+                  const Text(
+                    'Username',
+                    style: TextStyle(fontSize: 12, color: Colors.grey),
+                  ),
+                  Text(
+                    _user?.username ?? '',
+                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+                  ),
+                  const SizedBox(height: 16),
+                  
+                  // Email
+                  const Text(
+                    'Email',
+                    style: TextStyle(fontSize: 12, color: Colors.grey),
+                  ),
+                  Text(
+                    _user?.email ?? 'Not set',
+                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+                  ),
+                  const SizedBox(height: 16),
+                  
+                  // Role
+                  const Text(
+                    'Role',
+                    style: TextStyle(fontSize: 12, color: Colors.grey),
+                  ),
+                  Text(
+                    _user?.role ?? '',
+                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+                  ),
+                  const SizedBox(height: 24),
+                  
+                  // Edit Profile Button
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: _showEditProfileDialog,
+                      icon: const Icon(Icons.edit),
+                      label: const Text('Edit Profile'),
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
-          const SizedBox(height: 16),
-
-          // Email
-          TextFormField(
-            controller: _emailController,
-            decoration: const InputDecoration(
-              labelText: 'Email (optional)',
-              border: OutlineInputBorder(),
-            ),
-            keyboardType: TextInputType.emailAddress,
-          ),
-          const SizedBox(height: 16),
-
-          // Role (read-only)
-          TextFormField(
-            initialValue: _user?.role ?? '',
-            decoration: const InputDecoration(
-              labelText: 'Role',
-              border: OutlineInputBorder(),
-              enabled: false,
-            ),
-            readOnly: true,
           ),
           const SizedBox(height: 24),
-
-          const Text(
-            'Change Password',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 16),
-
-          // New Password
-          TextFormField(
-            controller: _passwordController,
-            decoration: const InputDecoration(
-              labelText: 'New Password (leave empty to keep current)',
-              border: OutlineInputBorder(),
-            ),
-            obscureText: true,
-          ),
-          const SizedBox(height: 16),
-
-          // Confirm Password
-          TextFormField(
-            controller: _confirmPasswordController,
-            decoration: const InputDecoration(
-              labelText: 'Confirm New Password',
-              border: OutlineInputBorder(),
-            ),
-            obscureText: true,
-          ),
-          const SizedBox(height: 24),
-
-          // Update Profile Button
-          ElevatedButton(
-            onPressed: _updateProfile,
-            style: ElevatedButton.styleFrom(
-              minimumSize: const Size(double.infinity, 50),
-            ),
-            child: const Text('Update Profile'),
-          ),
-          const SizedBox(height: 32),
 
           // Delete Account
-          const Divider(),
           ListTile(
             leading: const Icon(Icons.delete_forever, color: Colors.red),
             title: const Text('Delete Account', style: TextStyle(color: Colors.red)),
