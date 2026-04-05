@@ -1,10 +1,13 @@
 import 'dart:async';
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 
 class WebRtcService {
   RTCPeerConnection? _peerConnection;
   RTCDataChannel? _dataChannel;
+  bool _closed = false;
+  final List<Map<String, dynamic>> _pendingCandidates = [];
 
   final _messageController = StreamController<Map<String, dynamic>>.broadcast();
   final _stateController = StreamController<RTCPeerConnectionState>.broadcast();
@@ -19,6 +22,8 @@ class WebRtcService {
   bool get isReady => _dataChannel?.state == RTCDataChannelState.RTCDataChannelOpen;
 
   Future<void> init({bool createDataChannel = true}) async {
+    _closed = false;
+    _pendingCandidates.clear();
     _peerConnection = await createPeerConnection({
       'iceServers': [
         {'urls': 'stun:stun.l.google.com:19302'},
@@ -26,14 +31,22 @@ class WebRtcService {
     });
 
     _peerConnection!.onIceCandidate = (candidate) {
-      _candidateController.add(candidate);
-        };
+      debugPrint('[WebRTC] local ICE candidate: ${candidate.toMap()}');
+      try {
+        _candidateController.add(candidate);
+      } catch (_) {debugPrint('[_channelStateController] error');}
+
+    };
 
     _peerConnection!.onConnectionState = (state) {
-      _stateController.add(state);
+      debugPrint('[WebRTC] connection state: $state');
+      try {
+        _stateController.add(state);
+      } catch (_) {debugPrint('[_channelStateController] error');}
     };
 
     _peerConnection!.onDataChannel = (channel) {
+      debugPrint('[WebRTC] remote data channel received: ${channel.label}');
       _attachDataChannel(channel);
     };
 
@@ -42,18 +55,30 @@ class WebRtcService {
         'messages',
         RTCDataChannelInit()..ordered = true,
       );
+      debugPrint('[WebRTC] local data channel created: ${channel.label}');
       _attachDataChannel(channel);
     }
   }
 
   void _attachDataChannel(RTCDataChannel channel) {
     _dataChannel = channel;
-    _channelStateController.add(channel.state!);
+    final initialState = channel.state;
+    if (initialState != null) {
+      debugPrint('[WebRTC] data channel initial state: $initialState');
+      try {
+        _channelStateController.add(initialState);
+      } catch (_) {debugPrint('[_channelStateController] error');}
+    }
+
     channel.onDataChannelState = (state) {
-      _channelStateController.add(state);
+      debugPrint('[WebRTC] data channel state changed: $state');
+      try {
+        _channelStateController.add(state);
+      } catch (_) {debugPrint('[_channelStateController] error');}
     };
     channel.onMessage = (message) {
       final raw = message.text;
+      debugPrint('[WebRTC] data channel message received: $raw');
       try {
         final decoded = jsonDecode(raw) as Map<String, dynamic>;
         _messageController.add(decoded);
@@ -73,6 +98,12 @@ class WebRtcService {
     await _peerConnection!.setRemoteDescription(
       RTCSessionDescription(data['sdp']?.toString(), data['type']?.toString()),
     );
+    for (final candidate in _pendingCandidates) {
+      try {
+        await addRemoteCandidate(candidate);
+      } catch (_) {}
+    }
+    _pendingCandidates.clear();
   }
 
   Future<Map<String, dynamic>> createAnswer() async {
@@ -85,17 +116,27 @@ class WebRtcService {
     await _peerConnection!.setRemoteDescription(
       RTCSessionDescription(data['sdp']?.toString(), data['type']?.toString()),
     );
+    for (final candidate in _pendingCandidates) {
+      try {
+        await addRemoteCandidate(candidate);
+      } catch (_) {}
+    }
+    _pendingCandidates.clear();
   }
 
   Future<void> addRemoteCandidate(Map<String, dynamic> data) async {
-    final candidate = data['candidate'] as Map<String, dynamic>;
-    await _peerConnection!.addCandidate(
-      RTCIceCandidate(
-        candidate['candidate']?.toString(),
-        candidate['sdpMid']?.toString(),
-        candidate['sdpMLineIndex'] as int?,
-      ),
-    );
+    if (_peerConnection!.getRemoteDescription() == null) {
+      _pendingCandidates.add(data);
+    } else {
+      final candidate = data['candidate'] as Map<String, dynamic>;
+      await _peerConnection!.addCandidate(
+        RTCIceCandidate(
+          candidate['candidate']?.toString(),
+          candidate['sdpMid']?.toString(),
+          candidate['sdpMLineIndex'] as int?,
+        ),
+      );
+    }
   }
 
   Future<void> sendJson(Map<String, dynamic> payload) async {
@@ -107,11 +148,22 @@ class WebRtcService {
   }
 
   Future<void> close() async {
-    await _dataChannel?.close();
-    await _peerConnection?.close();
+    if (_closed) return;
+    _closed = true;
+    if (_peerConnection != null) {
+      try {
+        await _peerConnection!.close();
+      } catch (_) {}
+      _peerConnection = null;
+    }
+    _dataChannel = null;
+    _pendingCandidates.clear();
   }
 
   void dispose() {
+    _peerConnection?.close();
+    _peerConnection = null;
+    _dataChannel = null;
     _messageController.close();
     _stateController.close();
     _candidateController.close();

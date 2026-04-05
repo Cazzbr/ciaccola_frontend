@@ -1,14 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:ciaccola_frontend/screens/splash_screen.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
-  
-  // Initialize sqflite for Linux
-  sqfliteFfiInit();
-  databaseFactory = databaseFactoryFfi;
-  
   runApp(const ChatApp());
 }
 

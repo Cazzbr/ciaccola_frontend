@@ -6,7 +6,7 @@ import 'package:ciaccola_frontend/configs/api_config.dart';
 class ContactService {
   Future<List<Contact>> fetchContacts(String token) async {
     final response = await http.get(
-      Uri.parse('${ApiConfig.baseHttpUrl}${ApiConfig.contactsPath}'),
+      Uri.parse('${ApiConfig.baseHttpUrl}${ApiConfig.profilePath}'),
       headers: {'Authorization': 'Bearer $token'},
     );
 

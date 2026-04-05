@@ -1,36 +1,39 @@
 import 'package:path/path.dart';
 import 'package:ciaccola_frontend/models/chat_message.dart';
-import 'package:sqflite/sqflite.dart';
+import 'package:sqflite_common/sqlite_api.dart' as sqlite_api;
+import 'database_factory.dart';
 
 class DatabaseService {
-  static Database? _db;
+  static sqlite_api.Database? _db;
   static const _dbName = 'p2p_chat.db';
   static const messagesTable = 'messages';
 
-  Future<Database> get database async {
+  Future<sqlite_api.Database> get database async {
     _db ??= await _init();
     return _db!;
   }
 
-  Future<Database> _init() async {
-    final path = join(await getDatabasesPath(), _dbName);
-    return openDatabase(
+  Future<sqlite_api.Database> _init() async {
+    final path = join(await databaseFactory.getDatabasesPath(), _dbName);
+    return databaseFactory.openDatabase(
       path,
-      version: 1,
-      onCreate: (db, version) async {
-        await db.execute('''
-          CREATE TABLE $messagesTable (
-            localId INTEGER PRIMARY KEY AUTOINCREMENT,
-            messageId TEXT UNIQUE,
-            contactId TEXT NOT NULL,
-            message TEXT NOT NULL,
-            timestamp INTEGER NOT NULL,
-            isSentByMe INTEGER NOT NULL DEFAULT 0,
-            isQueued INTEGER NOT NULL DEFAULT 0,
-            deleted INTEGER NOT NULL DEFAULT 0
-          )
-        ''');
-      },
+      options: sqlite_api.OpenDatabaseOptions(
+        version: 1,
+        onCreate: (db, version) async {
+          await db.execute('''
+            CREATE TABLE $messagesTable (
+              localId INTEGER PRIMARY KEY AUTOINCREMENT,
+              messageId TEXT UNIQUE,
+              contactId TEXT NOT NULL,
+              message TEXT NOT NULL,
+              timestamp INTEGER NOT NULL,
+              isSentByMe INTEGER NOT NULL DEFAULT 0,
+              isQueued INTEGER NOT NULL DEFAULT 0,
+              deleted INTEGER NOT NULL DEFAULT 0
+            )
+          ''');
+        },
+      ),
     );
   }
 
@@ -39,7 +42,7 @@ class DatabaseService {
     await db.insert(
       messagesTable,
       message.toMap()..remove('localId'),
-      conflictAlgorithm: ConflictAlgorithm.replace,
+      conflictAlgorithm: sqlite_api.ConflictAlgorithm.replace,
     );
   }
 

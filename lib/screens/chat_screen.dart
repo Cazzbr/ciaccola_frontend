@@ -36,10 +36,22 @@ class _ChatScreenState extends State<ChatScreen> {
   List<ChatMessage> _messages = [];
   String _status = 'Connecting...';
   bool _busy = true;
+  bool _peerTyping = false;
+  bool _typingSent = false;
+  Timer? _typingStopTimer;
+  Timer? _typingDisplayTimer;
+  bool _offerSent = false;
+  late bool _isInitiator;
+
+  String get _roomId {
+    final ids = [widget.currentUserId, widget.contact.id]..sort();
+    return ids.join('_');
+  }
 
   @override
   void initState() {
     super.initState();
+    _isInitiator = widget.currentUserId.compareTo(widget.contact.id) < 0;
     _init();
   }
 
@@ -48,17 +60,17 @@ class _ChatScreenState extends State<ChatScreen> {
     await _webrtc.init(createDataChannel: true);
     _bindWebRtc();
     _bindSignaling();
-    _signaling.connect(token: widget.token, userId: widget.currentUserId);
-    _signaling.openChat(widget.contact.id);
-    final offer = await _webrtc.createOffer();
-    _signaling.sendOffer(to: widget.contact.id, from: widget.currentUserId, offer: offer);
+    if (!_signaling.connected) {
+      _signaling.connect(token: widget.token);
+    }
+    _signaling.joinRoom(_roomId);
     if (mounted) setState(() => _busy = false);
   }
 
   void _bindWebRtc() {
     _subs.add(_webrtc.onCandidate.listen((candidate) {
       _signaling.sendIceCandidate(
-        to: widget.contact.id,
+        room: _roomId,
         from: widget.currentUserId,
         candidate: candidate.toMap(),
       );
@@ -120,8 +132,29 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   void _bindSignaling() {
-    _subs.add(_signaling.onConnect.listen((_) {
+    _subs.add(_signaling.onConnect.listen((_) async {
+      debugPrint('[ChatScreen] signaling connected in room $_roomId');
       if (mounted) setState(() => _status = 'Signaling connected');
+    }));
+
+    _subs.add(_signaling.onRoomJoined.listen((joinedRoom) async {
+      if (joinedRoom == _roomId && _isInitiator && !_offerSent) {
+        _offerSent = true;
+        final offer = await _webrtc.createOffer();
+        debugPrint('[ChatScreen] sending local offer after joining room');
+        _signaling.sendOffer(room: _roomId, from: widget.currentUserId, offer: offer);
+      }
+    }));
+
+    _subs.add(_signaling.onUserJoined.listen((data) async {
+      final joinedId = data['userId']?.toString();
+      debugPrint('[ChatScreen] peer joined room: $joinedId');
+      if (joinedId == widget.contact.id && _isInitiator) {
+        final offer = await _webrtc.createOffer();
+        debugPrint('[ChatScreen] sending offer because peer joined');
+        _signaling.sendOffer(room: _roomId, from: widget.currentUserId, offer: offer);
+        _offerSent = true;
+      }
     }));
 
     _subs.add(_signaling.onDisconnect.listen((_) {
@@ -129,20 +162,59 @@ class _ChatScreenState extends State<ChatScreen> {
     }));
 
     _subs.add(_signaling.onOffer.listen((data) async {
-      if (data['from']?.toString() != widget.contact.id) return;
-      await _webrtc.applyRemoteOffer(data);
-      final answer = await _webrtc.createAnswer();
-      _signaling.sendAnswer(to: widget.contact.id, from: widget.currentUserId, answer: answer);
+      final from = data['from']?.toString();
+      debugPrint('[ChatScreen] offer event from $from: $data');
+      if (from != null && from != widget.contact.id) return;
+      try {
+        await _webrtc.applyRemoteOffer(data);
+        final answer = await _webrtc.createAnswer();
+        debugPrint('[ChatScreen] sending answer');
+        _signaling.sendAnswer(room: _roomId, from: widget.currentUserId, answer: answer);
+      } catch (e, st) {
+        debugPrint('[ChatScreen] offer handling failed: $e');
+        debugPrint(st.toString());
+      }
     }));
 
     _subs.add(_signaling.onAnswer.listen((data) async {
-      if (data['from']?.toString() != widget.contact.id) return;
-      await _webrtc.applyRemoteAnswer(data);
+      final from = data['from']?.toString();
+      debugPrint('[ChatScreen] answer event from $from: $data');
+      if (from != null && from != widget.contact.id) return;
+      try {
+        await _webrtc.applyRemoteAnswer(data);
+      } catch (e, st) {
+        debugPrint('[ChatScreen] answer handling failed: $e');
+        debugPrint(st.toString());
+      }
     }));
 
     _subs.add(_signaling.onCandidate.listen((data) async {
-      if (data['from']?.toString() != widget.contact.id) return;
-      await _webrtc.addRemoteCandidate(data);
+      final from = data['from']?.toString();
+      debugPrint('[ChatScreen] candidate event from $from: $data');
+      if (from != null && from != widget.contact.id) return;
+      try {
+        await _webrtc.addRemoteCandidate(data);
+      } catch (e, st) {
+        debugPrint('[ChatScreen] remote candidate failed: $e');
+        debugPrint(st.toString());
+      }
+    }));
+
+    _subs.add(_signaling.onTyping.listen((username) {
+      if (!mounted) return;
+      setState(() {
+        _peerTyping = true;
+      });
+      _typingDisplayTimer?.cancel();
+      _typingDisplayTimer = Timer(const Duration(seconds: 3), () {
+        if (!mounted) return;
+        setState(() => _peerTyping = false);
+      });
+    }));
+
+    _subs.add(_signaling.onStopTyping.listen((_) {
+      if (!mounted) return;
+      setState(() => _peerTyping = false);
     }));
 
     _subs.add(_signaling.onDelete.listen((data) async {
@@ -163,6 +235,12 @@ class _ChatScreenState extends State<ChatScreen> {
     final text = _controller.text.trim();
     if (text.isEmpty) return;
 
+    _typingStopTimer?.cancel();
+    if (_typingSent) {
+      _signaling.sendStopTyping(room: _roomId);
+      _typingSent = false;
+    }
+
     final message = ChatMessage(
       messageId: _uuid.v4(),
       contactId: widget.contact.id,
@@ -178,6 +256,7 @@ class _ChatScreenState extends State<ChatScreen> {
     await _loadMessages();
 
     if (_webrtc.isReady) {
+      debugPrint('[ChatScreen] sending message over data channel: ${message.messageId}');
       await _webrtc.sendJson({
         'type': 'text',
         'messageId': message.messageId,
@@ -186,7 +265,23 @@ class _ChatScreenState extends State<ChatScreen> {
       });
       await _db.markMessageDelivered(message.messageId);
       await _loadMessages();
+    } else {
+      debugPrint('[ChatScreen] data channel not ready, queuing message: ${message.messageId}');
     }
+  }
+
+  void _onTextChanged(String value) {
+    if (!_signaling.connected) return;
+    if (!_typingSent) {
+      _signaling.sendTyping(room: _roomId);
+      _typingSent = true;
+    }
+
+    _typingStopTimer?.cancel();
+    _typingStopTimer = Timer(const Duration(seconds: 2), () {
+      _signaling.sendStopTyping(room: _roomId);
+      _typingSent = false;
+    });
   }
 
   Future<void> _flushQueuedMessages() async {
@@ -252,11 +347,12 @@ class _ChatScreenState extends State<ChatScreen> {
     for (final sub in _subs) {
       sub.cancel();
     }
+    _typingStopTimer?.cancel();
+    _typingDisplayTimer?.cancel();
     _controller.dispose();
     _scrollController.dispose();
     _webrtc.close();
     _webrtc.dispose();
-    _signaling.dispose();
     super.dispose();
   }
 
@@ -269,7 +365,10 @@ class _ChatScreenState extends State<ChatScreen> {
           preferredSize: const Size.fromHeight(28),
           child: Padding(
             padding: const EdgeInsets.only(bottom: 8),
-            child: Text(_status, style: Theme.of(context).textTheme.bodySmall),
+            child: Text(
+              _peerTyping ? 'Typing...' : _status,
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
           ),
         ),
       ),
@@ -293,18 +392,21 @@ class _ChatScreenState extends State<ChatScreen> {
                             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                             constraints: const BoxConstraints(maxWidth: 300),
                             decoration: BoxDecoration(
-                              color: mine ? Colors.teal.shade100 : Colors.grey.shade200,
+                              color: mine ? Colors.blue.shade800 : Colors.grey.shade700,
                               borderRadius: BorderRadius.circular(12),
                             ),
                             child: Column(
                               crossAxisAlignment:
                                   mine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
                               children: [
-                                Text(message.text),
+                                Text(
+                                  message.text,
+                                  style: const TextStyle(color: Colors.white),
+                                ),
                                 const SizedBox(height: 4),
                                 Text(
                                   message.isQueued ? 'Queued' : 'Sent',
-                                  style: Theme.of(context).textTheme.labelSmall,
+                                  style: Theme.of(context).textTheme.labelSmall?.copyWith(color: Colors.white70),
                                 ),
                               ],
                             ),
@@ -327,6 +429,7 @@ class _ChatScreenState extends State<ChatScreen> {
                               hintText: 'Type a message',
                               border: OutlineInputBorder(),
                             ),
+                            onChanged: _onTextChanged,
                             onSubmitted: (_) => _sendMessage(),
                           ),
                         ),

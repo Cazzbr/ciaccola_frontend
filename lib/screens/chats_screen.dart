@@ -4,6 +4,7 @@ import 'package:ciaccola_frontend/models/contact.dart';
 import 'package:ciaccola_frontend/screens/chat_screen.dart';
 import 'package:ciaccola_frontend/services/contact_service.dart';
 import 'package:ciaccola_frontend/services/database_service.dart';
+import 'package:ciaccola_frontend/services/socket_signaling_service.dart';
 
 class ChatsScreen extends StatefulWidget {
   final String token;
@@ -24,6 +25,7 @@ class _ChatsScreenState extends State<ChatsScreen> {
   @override
   void initState() {
     super.initState();
+    SocketSignalingService().connect(token: widget.token);
     _load();
   }
 
@@ -84,7 +86,7 @@ class _ChatsScreenState extends State<ChatsScreen> {
                         final contact = _chats[index];
                         return ListTile(
                           title: Text(contact.name),
-                          subtitle: Text("Status: ${contact.status}"),
+                          subtitle: Text("Status: ${contact.status}${contact.lastSeen != null ? ' • Last seen: ${contact.lastSeen}' : ''}"),
                           onTap: () {
                             Navigator.of(context).push(
                               MaterialPageRoute(
