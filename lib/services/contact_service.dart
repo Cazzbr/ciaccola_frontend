@@ -18,7 +18,7 @@ class ContactService {
     if (data is! Map<String, dynamic>) {
       throw Exception('Unexpected response format');
     }
-    
+
     final contactsList = List<dynamic>.from(data['contacts'] ?? []);
     return contactsList
         .map((item) => Contact.fromJson(item as Map<String, dynamic>))
@@ -73,5 +73,35 @@ class ContactService {
     }
 
     return Contact.fromJson(data);
+  }
+
+  /// Accepts a contact invite. The backend handles the reciprocal relationship
+  /// and emits `contact-accepted` to the original sender via socket.
+  Future<void> acceptInvite(String token, String contactUsername) async {
+    final response = await http.put(
+      Uri.parse('${ApiConfig.baseHttpUrl}/api/users/contacts'),
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+      body: jsonEncode({'contact_username': contactUsername}),
+    );
+
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw Exception('Failed to accept invite: ${response.statusCode} - ${response.body}');
+    }
+  }
+
+  /// Toggles block/unblock for a contact.
+  /// [subDocId] is the subdocument `_id` from the profile contacts array.
+  Future<void> toggleBlock(String token, String subDocId) async {
+    final response = await http.patch(
+      Uri.parse('${ApiConfig.baseHttpUrl}/api/users/contacts/$subDocId'),
+      headers: {'Authorization': 'Bearer $token'},
+    );
+
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw Exception('Failed to toggle block: ${response.statusCode} - ${response.body}');
+    }
   }
 }

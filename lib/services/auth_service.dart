@@ -116,11 +116,13 @@ class AuthService {
     String? username,
     String? email,
     String? password,
+    String? role,
   }) async {
     final body = <String, dynamic>{};
     if (username != null) body['username'] = username;
     if (email != null) body['email'] = email;
     if (password != null) body['password'] = password;
+    if (role != null) body['role'] = role;
 
     final response = await http.put(
       Uri.parse('${ApiConfig.baseHttpUrl}${ApiConfig.profilePath}'),

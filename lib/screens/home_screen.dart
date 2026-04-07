@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:ciaccola_frontend/screens/chats_screen.dart';
 import 'package:ciaccola_frontend/screens/contacts_screen.dart';
-import 'package:ciaccola_frontend/screens/configurations_screen.dart';
+import 'package:ciaccola_frontend/screens/profile_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   final String token;
@@ -22,7 +22,7 @@ class _HomeScreenState extends State<HomeScreen> {
     _screens = [
       ChatsScreen(token: widget.token),
       ContactsScreen(token: widget.token),
-      ConfigurationsScreen(token: widget.token),
+      ProfileScreen(token: widget.token),
     ];
   }
 
@@ -47,8 +47,8 @@ class _HomeScreenState extends State<HomeScreen> {
             label: 'Contacts',
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.settings),
-            label: 'Configurations',
+            icon: Icon(Icons.person),
+            label: 'Profile',
           ),
         ],
         currentIndex: _selectedIndex,

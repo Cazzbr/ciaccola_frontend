@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:ciaccola_frontend/screens/login_screen.dart';
 import 'package:ciaccola_frontend/services/auth_service.dart';
-import 'package:ciaccola_frontend/services/socket_signaling_service.dart';
+import 'package:ciaccola_frontend/services/connection_manager.dart';
 import 'package:ciaccola_frontend/models/user.dart';
 
 class ConfigurationsScreen extends StatefulWidget {
@@ -193,7 +193,7 @@ class _ConfigurationsScreenState extends State<ConfigurationsScreen> {
       );
 
       // Logout and navigate to login screen
-      SocketSignalingService().disconnect();
+      ConnectionManager().stop();
       await _authService.logout();
       if (!mounted) return;
       Navigator.of(context).pushAndRemoveUntil(
@@ -210,7 +210,7 @@ class _ConfigurationsScreenState extends State<ConfigurationsScreen> {
   }
 
   Future<void> _logout() async {
-    SocketSignalingService().disconnect();
+    ConnectionManager().stop();
     await _authService.logout();
     if (!mounted) return;
     Navigator.of(context).pushAndRemoveUntil(

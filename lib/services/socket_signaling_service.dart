@@ -24,6 +24,9 @@ class SocketSignalingService {
   final _stopTypingController = StreamController<void>.broadcast();
   final _deleteController = StreamController<Map<String, dynamic>>.broadcast();
   final _roomJoinedController = StreamController<String>.broadcast();
+  final _userOfflineController = StreamController<Map<String, dynamic>>.broadcast();
+  final _contactInviteController = StreamController<Map<String, dynamic>>.broadcast();
+  final _contactAcceptedController = StreamController<Map<String, dynamic>>.broadcast();
 
   Stream<void> get onConnect => _connectController.stream;
   Stream<void> get onDisconnect => _disconnectController.stream;
@@ -36,6 +39,9 @@ class SocketSignalingService {
   Stream<void> get onStopTyping => _stopTypingController.stream;
   Stream<Map<String, dynamic>> get onDelete => _deleteController.stream;
   Stream<String> get onRoomJoined => _roomJoinedController.stream;
+  Stream<Map<String, dynamic>> get onUserOffline => _userOfflineController.stream;
+  Stream<Map<String, dynamic>> get onContactInvite => _contactInviteController.stream;
+  Stream<Map<String, dynamic>> get onContactAccepted => _contactAcceptedController.stream;
 
   bool get connected => _socket?.connected == true;
 
@@ -76,6 +82,9 @@ class SocketSignalingService {
     _socket!.on('typing', (data) => _typingController.add(data?.toString() ?? ''));
     _socket!.on('stop-typing', (_) => _stopTypingController.add(null));
     _socket!.on('delete-message', (data) => _deleteController.add(Map<String, dynamic>.from(data)));
+    _socket!.on('user-offline', (data) => _userOfflineController.add(Map<String, dynamic>.from(data)));
+    _socket!.on('contact-invite', (data) => _contactInviteController.add(Map<String, dynamic>.from(data)));
+    _socket!.on('contact-accepted', (data) => _contactAcceptedController.add(Map<String, dynamic>.from(data)));
     _socket!.connect();
   }
 
@@ -122,6 +131,10 @@ class SocketSignalingService {
     _socket?.emit('delete-message', {'to': to, 'from': from, 'messageId': messageId});
   }
 
+  void sendUserOffline({required String room, required String from}) {
+    _socket?.emit('user-offline', {'room': room, 'from': from});
+  }
+
   void dispose() {
     _socket?.dispose();
     _connectController.close();
@@ -135,5 +148,8 @@ class SocketSignalingService {
     _stopTypingController.close();
     _deleteController.close();
     _roomJoinedController.close();
+    _userOfflineController.close();
+    _contactInviteController.close();
+    _contactAcceptedController.close();
   }
 }

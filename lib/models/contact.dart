@@ -1,11 +1,21 @@
 class Contact {
+  /// Subdocument `_id` from the profile contacts array.
+  /// Used as the `:id` path param for PATCH /api/users/contacts/:id (block toggle).
+  final String subDocId;
+
+  /// The actual user ID (contact_id._id).
   final String id;
+
   final String username;
   final String name;
+
+  /// Relationship status: pending | invited | accepted | blocked | deleted
   final String status;
+
   final String? lastSeen;
 
   const Contact({
+    this.subDocId = '',
     required this.id,
     required this.username,
     required this.name,
@@ -13,28 +23,40 @@ class Contact {
     this.lastSeen,
   });
 
+  Contact copyWith({String? status}) => Contact(
+        subDocId: subDocId,
+        id: id,
+        username: username,
+        name: name,
+        status: status ?? this.status,
+        lastSeen: lastSeen,
+      );
+
   factory Contact.fromJson(Map<String, dynamic> json) {
     final contactId = json['contact_id'];
+
     if (contactId is Map<String, dynamic>) {
+      // Profile contacts format:
+      // { "_id": "<subDocId>", "contact_id": { "_id": "...", "username": "...", "last_seen": "..." }, "status": "..." }
       return Contact(
+        subDocId: json['_id']?.toString() ?? '',
         id: contactId['_id']?.toString() ?? '',
         username: contactId['username']?.toString() ?? '',
         name: contactId['username']?.toString() ?? '',
         status: json['status']?.toString() ?? 'pending',
         lastSeen: contactId['last_seen']?.toString(),
       );
-    } else {
-      // Fallback for old format
-      final rawUsername = json['username'] ?? json['contact_username'] ?? json['name'];
-      final rawName = json['name'] ?? json['contact_username'] ?? json['username'];
-
-      return Contact(
-        id: json['contact_id']?.toString() ?? json['_id']?.toString() ?? json['id']?.toString() ?? '',
-        username: rawUsername?.toString() ?? '',
-        name: rawName?.toString() ?? '',
-        status: (json['status'] ?? 'pending').toString(),
-        lastSeen: null,
-      );
     }
+
+    // Search results format:
+    // { "_id": "<userId>", "username": "...", "role": "...", "last_seen": "...", "createdAt": "..." }
+    return Contact(
+      subDocId: '',
+      id: json['_id']?.toString() ?? json['id']?.toString() ?? '',
+      username: json['username']?.toString() ?? '',
+      name: json['username']?.toString() ?? '',
+      status: json['status']?.toString() ?? '',
+      lastSeen: json['last_seen']?.toString(),
+    );
   }
 }

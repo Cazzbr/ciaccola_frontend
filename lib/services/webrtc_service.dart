@@ -21,6 +21,10 @@ class WebRtcService {
 
   bool get isReady => _dataChannel?.state == RTCDataChannelState.RTCDataChannelOpen;
 
+  /// True between createOffer() and applyRemoteAnswer() — used to guard
+  /// against applying stale/duplicate answers in the wrong signaling state.
+  bool _hasLocalOffer = false;
+
   Future<void> init({bool createDataChannel = true}) async {
     _closed = false;
     _pendingCandidates.clear();
@@ -89,7 +93,11 @@ class WebRtcService {
   }
 
   Future<Map<String, dynamic>> createOffer() async {
-    final offer = await _peerConnection!.createOffer();
+    _hasLocalOffer = true;
+    final offer = await _peerConnection!.createOffer({
+      'offerToReceiveAudio': false,
+      'offerToReceiveVideo': false,
+    });
     await _peerConnection!.setLocalDescription(offer);
     return {'sdp': offer.sdp, 'type': offer.type};
   }
@@ -113,6 +121,11 @@ class WebRtcService {
   }
 
   Future<void> applyRemoteAnswer(Map<String, dynamic> data) async {
+    if (!_hasLocalOffer) {
+      debugPrint('[WebRTC] ignoring answer — no pending local offer');
+      return;
+    }
+    _hasLocalOffer = false;
     await _peerConnection!.setRemoteDescription(
       RTCSessionDescription(data['sdp']?.toString(), data['type']?.toString()),
     );
@@ -125,7 +138,7 @@ class WebRtcService {
   }
 
   Future<void> addRemoteCandidate(Map<String, dynamic> data) async {
-    if (_peerConnection!.getRemoteDescription() == null) {
+    if (await _peerConnection!.getRemoteDescription() == null) {
       _pendingCandidates.add(data);
     } else {
       final candidate = data['candidate'] as Map<String, dynamic>;
@@ -150,20 +163,27 @@ class WebRtcService {
   Future<void> close() async {
     if (_closed) return;
     _closed = true;
-    if (_peerConnection != null) {
-      try {
-        await _peerConnection!.close();
-      } catch (_) {}
-      _peerConnection = null;
-    }
     _dataChannel = null;
     _pendingCandidates.clear();
+    final pc = _peerConnection;
+    _peerConnection = null;
+    if (pc != null) {
+      try { await pc.close(); } catch (_) {}
+    }
   }
 
   void dispose() {
-    _peerConnection?.close();
-    _peerConnection = null;
-    _dataChannel = null;
+    // Close synchronously best-effort, then release all stream controllers.
+    if (!_closed) {
+      _closed = true;
+      _dataChannel = null;
+      _pendingCandidates.clear();
+      final pc = _peerConnection;
+      _peerConnection = null;
+      if (pc != null) {
+        pc.close().catchError((_) {});
+      }
+    }
     _messageController.close();
     _stateController.close();
     _candidateController.close();
