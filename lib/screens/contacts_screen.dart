@@ -38,7 +38,6 @@ class _ContactsScreenState extends State<ContactsScreen> {
     try {
       _currentUserId = _extractUserId(widget.token) ?? 'me';
       final all = await _contactService.fetchContacts(widget.token);
-      // Hide deleted contacts; show everything else (accepted, pending, blocked, invited).
       final visible = all.where((c) => c.status != 'deleted').toList();
       if (mounted) {
         setState(() {
@@ -112,7 +111,6 @@ class _ContactsScreenState extends State<ContactsScreen> {
   }
 
   void _showAddContactDialog() {
-    // Build a lookup of existing relationship statuses by contact ID.
     final existingStatus = { for (final c in _contacts) c.id: c.status };
 
     final contactController = TextEditingController();
@@ -135,7 +133,6 @@ class _ContactsScreenState extends State<ContactsScreen> {
             try {
               final results = await _contactService.searchUsers(widget.token, term, limit: 12);
               if (!mounted || !dialogContext.mounted) return;
-              // Filter out the logged-in user — they can't add themselves.
               final filtered = results.where((r) => r.id != _currentUserId).toList();
               dialogSetState(() {
                 searchResults = filtered;
@@ -273,8 +270,6 @@ class _ContactsScreenState extends State<ContactsScreen> {
               ),
             ),
           ),
-
-          // Content
           Expanded(
             child: _loading
                 ? const Center(child: CircularProgressIndicator())
@@ -344,10 +339,6 @@ class _ContactsScreenState extends State<ContactsScreen> {
   }
 }
 
-// ---------------------------------------------------------------------------
-// Contact tile
-// ---------------------------------------------------------------------------
-
 class _ContactTile extends StatelessWidget {
   final Contact contact;
   final String initials;
@@ -413,8 +404,6 @@ class _ContactTile extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 14),
-
-              // Info
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -431,8 +420,6 @@ class _ContactTile extends StatelessWidget {
                   ],
                 ),
               ),
-
-              // Trailing actions
               if (isAccepted || isBlocked)
                 PopupMenuButton<String>(
                   icon: const Icon(Icons.more_vert, size: 20),
@@ -487,7 +474,6 @@ class _ContactTile extends StatelessWidget {
   }
 }
 
-// Shown in the search dialog for users already in the contact list.
 class _RelationChip extends StatelessWidget {
   final String status;
   const _RelationChip({required this.status});

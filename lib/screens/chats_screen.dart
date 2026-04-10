@@ -38,10 +38,6 @@ class _ChatsScreenState extends State<ChatsScreen> {
   StreamSubscription? _eventSub;
   Timer? _heartbeat;
 
-  // -------------------------------------------------------------------------
-  // Lifecycle
-  // -------------------------------------------------------------------------
-
   @override
   void initState() {
     super.initState();
@@ -60,17 +56,11 @@ class _ChatsScreenState extends State<ChatsScreen> {
   Future<void> _load() async {
     try {
       _currentUserId = _extractUserId(widget.token) ?? 'me';
-
-      // Fetch contacts; also try to read the premium flag from profile.
       _allContacts = await _contactService.fetchContacts(widget.token);
       try {
         final profile = await _authService.getProfile(widget.token);
         _manager.isPremium = profile.role == 'premium';
-      } catch (_) {
-        // Non-fatal — premium features just won't show if profile fails.
-      }
-
-      // Only start WebRTC for accepted contacts.
+      } catch (_) {}
       final accepted = _allContacts.where((c) => c.status == 'accepted').toList();
       await _manager.start(
         currentUserId: _currentUserId,
@@ -158,10 +148,6 @@ class _ChatsScreenState extends State<ChatsScreen> {
     if (mounted) setState(() => _invites = invites);
   }
 
-  // -------------------------------------------------------------------------
-  // Invite actions
-  // -------------------------------------------------------------------------
-
   Future<void> _acceptInvite(Contact contact) async {
     try {
       await _contactService.acceptInvite(widget.token, contact.username);
@@ -177,16 +163,8 @@ class _ChatsScreenState extends State<ChatsScreen> {
   }
 
   void _dismissInvite(Contact contact) {
-    // Local dismiss only — the invite card disappears from this session.
-    // The entry remains in the backend until the user accepts or the sender
-    // removes them, so it will reappear on next reload.
     if (mounted) setState(() => _invites.removeWhere((c) => c.id == contact.id));
   }
-
-  // -------------------------------------------------------------------------
-  // Helpers
-  // -------------------------------------------------------------------------
-
   String? _extractUserId(String token) {
     try {
       final parts = token.split('.');
@@ -267,10 +245,6 @@ class _ChatsScreenState extends State<ChatsScreen> {
     return seen.isNotEmpty ? 'Last seen $seen' : 'Offline';
   }
 
-  // -------------------------------------------------------------------------
-  // Build
-  // -------------------------------------------------------------------------
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -316,8 +290,6 @@ class _ChatsScreenState extends State<ChatsScreen> {
                                           onAccept: () => _acceptInvite(contact),
                                           onIgnore: () => _dismissInvite(contact),
                                         )),
-
-                                    // Chat tiles
                                     ..._filteredChats.map((contact) => _ChatTile(
                                           contact: contact,
                                           lastMessage: _lastMessages[contact.id],
@@ -347,10 +319,6 @@ class _ChatsScreenState extends State<ChatsScreen> {
     );
   }
 }
-
-// ---------------------------------------------------------------------------
-// Invite card
-// ---------------------------------------------------------------------------
 
 class _InviteCard extends StatelessWidget {
   final Contact contact;
@@ -410,10 +378,6 @@ class _InviteCard extends StatelessWidget {
     );
   }
 }
-
-// ---------------------------------------------------------------------------
-// Chat tile
-// ---------------------------------------------------------------------------
 
 class _ChatTile extends StatelessWidget {
   final Contact contact;

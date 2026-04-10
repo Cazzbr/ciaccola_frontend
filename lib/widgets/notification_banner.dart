@@ -1,16 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 
-/// A transient top-of-screen banner that slides in, lingers, then slides out.
-///
-/// Usage:
-///   NotificationBanner.show(
-///     context,
-///     icon: Icons.message,
-///     title: 'Alice',
-///     body: 'Hey there!',
-///     onTap: () { /* navigate */ },
-///   );
 class NotificationBanner extends StatefulWidget {
   final IconData icon;
   final Color iconColor;
@@ -30,10 +20,6 @@ class NotificationBanner extends StatefulWidget {
     this.onTap,
     this.duration = const Duration(seconds: 4),
   });
-
-  // ---------------------------------------------------------------------------
-  // Factory helper
-  // ---------------------------------------------------------------------------
 
   static OverlayEntry show(
     BuildContext context, {
@@ -102,10 +88,6 @@ class _NotificationBannerState extends State<NotificationBanner>
     if (!mounted) return;
     _timer?.cancel();
     await _ctrl.reverse();
-    // The widget may have been disposed while the reverse animation was running
-    // (e.g. hot restart, navigation). Calling onDismiss() after disposal
-    // triggers entry.remove() → markNeedsBuild on the Overlay → schedules a
-    // frame → "Trying to render a disposed EngineFlutterView" on web.
     if (!mounted) return;
     widget.onDismiss();
   }

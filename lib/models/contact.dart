@@ -1,17 +1,9 @@
 class Contact {
-  /// Subdocument `_id` from the profile contacts array.
-  /// Used as the `:id` path param for PATCH /api/users/contacts/:id (block toggle).
   final String subDocId;
-
-  /// The actual user ID (contact_id._id).
   final String id;
-
   final String username;
   final String name;
-
-  /// Relationship status: pending | invited | accepted | blocked | deleted
   final String status;
-
   final String? lastSeen;
 
   const Contact({
@@ -36,8 +28,6 @@ class Contact {
     final contactId = json['contact_id'];
 
     if (contactId is Map<String, dynamic>) {
-      // Profile contacts format:
-      // { "_id": "<subDocId>", "contact_id": { "_id": "...", "username": "...", "last_seen": "..." }, "status": "..." }
       return Contact(
         subDocId: json['_id']?.toString() ?? '',
         id: contactId['_id']?.toString() ?? '',
@@ -48,8 +38,6 @@ class Contact {
       );
     }
 
-    // Search results format:
-    // { "_id": "<userId>", "username": "...", "role": "...", "last_seen": "...", "createdAt": "..." }
     return Contact(
       subDocId: '',
       id: json['_id']?.toString() ?? json['id']?.toString() ?? '',

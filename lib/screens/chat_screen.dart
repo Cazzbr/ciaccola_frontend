@@ -49,7 +49,6 @@ class _ChatScreenState extends State<ChatScreen> {
   Timer? _typingStopTimer;
   Timer? _typingDisplayTimer;
 
-  // Audio recording state
   final AudioRecorder _recorder = AudioRecorder();
   bool _isRecording = false;
   bool _isStartingRecording = false; // true while _startRecording() is in-flight
@@ -79,14 +78,8 @@ class _ChatScreenState extends State<ChatScreen> {
     _bindEvents();
     await _manager.flushIfReady(widget.contact.id);
     if (mounted) setState(() => _busy = false);
-    // Pre-warm microphone permission so the browser/OS has already resolved
-    // access before the user presses the mic button.
     _recorder.hasPermission().ignore();
   }
-
-  // -------------------------------------------------------------------------
-  // Event subscriptions
-  // -------------------------------------------------------------------------
 
   void _listen<T>(Stream<T> stream, void Function(T) onData) {
     _subs.add(stream.listen(onData));
@@ -151,10 +144,6 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
-  // -------------------------------------------------------------------------
-  // Text messages
-  // -------------------------------------------------------------------------
-
   Future<void> _loadMessages() async {
     final items = await _db.getMessages(widget.contact.id);
     if (!mounted) return;
@@ -213,12 +202,6 @@ class _ChatScreenState extends State<ChatScreen> {
     });
   }
 
-  // -------------------------------------------------------------------------
-  // Audio recording
-  // -------------------------------------------------------------------------
-
-  // Opus (.ogg) works reliably on Linux/desktop via GStreamer.
-  // AAC (.aac) is better for Android/iOS but needs extra GStreamer plugins on desktop.
   bool get _isDesktop =>
       !kIsWeb && (Platform.isLinux || Platform.isWindows || Platform.isMacOS);
 
@@ -246,7 +229,6 @@ class _ChatScreenState extends State<ChatScreen> {
       return;
     }
 
-    // On web the record package manages its own in-memory blob — no path needed.
     final String path;
     if (kIsWeb) {
       path = '';
@@ -301,8 +283,6 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   Future<void> _sendAudio(String filePath) async {
-    // On web the recorder returns a blob URL; fetch its bytes via http.
-    // On native platforms read directly from the file system.
     final Uint8List bytes;
     if (kIsWeb) {
       final response = await http.get(Uri.parse(filePath));
@@ -314,9 +294,6 @@ class _ChatScreenState extends State<ChatScreen> {
     final messageId = _uuid.v4();
     final ts = DateTime.now().millisecondsSinceEpoch;
 
-    // On web, store a data URI for local playback. The raw blob URL has no
-    // duration metadata, causing audioplayers to seek to the wrong initial
-    // position and skip the beginning of the recording.
     final localAudioPath = kIsWeb
         ? 'data:audio/webm;base64,$base64Audio'
         : filePath;
@@ -349,16 +326,10 @@ class _ChatScreenState extends State<ChatScreen> {
     await _loadMessages();
   }
 
-  // -------------------------------------------------------------------------
-  // Delete
-  // -------------------------------------------------------------------------
-
   Future<void> _deleteMessage(ChatMessage message) async {
     await _db.deleteForMeAndHide(message.messageId);
     await _loadMessages();
 
-    // Persist the deletion on the server so it survives re-installs and
-    // different devices. Fire-and-forget: local deletion already happened.
     http.delete(
       Uri.parse('${ApiConfig.baseHttpUrl}/api/messages/$_roomId/${message.messageId}'),
       headers: {'Authorization': 'Bearer ${widget.token}'},
@@ -423,10 +394,6 @@ class _ChatScreenState extends State<ChatScreen> {
     super.dispose();
   }
 
-  // -------------------------------------------------------------------------
-  // Build
-  // -------------------------------------------------------------------------
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -459,10 +426,6 @@ class _ChatScreenState extends State<ChatScreen> {
             ),
     );
   }
-
-  // -------------------------------------------------------------------------
-  // Message bubble
-  // -------------------------------------------------------------------------
 
   String _formatBubbleTime(int timestamp) {
     final dt = DateTime.fromMillisecondsSinceEpoch(timestamp).toLocal();
@@ -556,10 +519,6 @@ class _ChatScreenState extends State<ChatScreen> {
     );
   }
 
-  // -------------------------------------------------------------------------
-  // Input bar
-  // -------------------------------------------------------------------------
-
   Widget _buildInputBar() {
     if (_isRecording) return _buildRecordingBar();
 
@@ -590,12 +549,8 @@ class _ChatScreenState extends State<ChatScreen> {
               Tooltip(
                 message: 'Hold to record',
                 child: GestureDetector(
-                  // Start immediately on first touch — not after the long-press
-                  // threshold — so process startup (Linux) / MediaRecorder init
-                  // (web) happens before the user begins speaking.
                   onTapDown: (_isRecording || _isStartingRecording) ? null : (_) => _startRecording(),
                   onLongPressEnd: (_) => _stopRecording(send: !_recordCancelled),
-                  // Second tap stops and sends (toggle mode).
                   onTap: (_isRecording || _isStartingRecording) ? () => _stopRecording(send: true) : null,
                   child: Container(
                     width: 48,
@@ -675,10 +630,6 @@ class _ChatScreenState extends State<ChatScreen> {
     return '$m:$s';
   }
 }
-
-// ---------------------------------------------------------------------------
-// Audio playback widget
-// ---------------------------------------------------------------------------
 
 class _AudioPlayer extends StatefulWidget {
   final String path;
@@ -790,10 +741,6 @@ class _AudioPlayerState extends State<_AudioPlayer> {
     );
   }
 }
-
-// ---------------------------------------------------------------------------
-// Pulsing recording dot
-// ---------------------------------------------------------------------------
 
 class _PulsingDot extends StatefulWidget {
   const _PulsingDot();

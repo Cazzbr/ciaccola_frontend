@@ -21,8 +21,6 @@ class WebRtcService {
 
   bool get isReady => _dataChannel?.state == RTCDataChannelState.RTCDataChannelOpen;
 
-  /// True between createOffer() and applyRemoteAnswer() — used to guard
-  /// against applying stale/duplicate answers in the wrong signaling state.
   bool _hasLocalOffer = false;
 
   Future<void> init({bool createDataChannel = true}) async {
@@ -171,7 +169,6 @@ class WebRtcService {
   }
 
   void dispose() {
-    // Close synchronously best-effort, then release all stream controllers.
     if (!_closed) {
       _closed = true;
       _dataChannel = null;

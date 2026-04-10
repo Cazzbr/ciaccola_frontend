@@ -46,10 +46,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
-  // -------------------------------------------------------------------------
-  // Edit profile
-  // -------------------------------------------------------------------------
-
   Future<void> _updateProfile() async {
     if (_user == null) return;
 
@@ -137,10 +133,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  // -------------------------------------------------------------------------
-  // Subscription
-  // -------------------------------------------------------------------------
-
   Future<void> _updateRole(String newRole) async {
     setState(() => _updatingRole = true);
     try {
@@ -179,10 +171,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
     if (confirm == true) await _updateRole(newRole);
   }
-
-  // -------------------------------------------------------------------------
-  // Account actions
-  // -------------------------------------------------------------------------
 
   Future<void> _deleteAccount() async {
     final confirmed = await showDialog<bool>(
@@ -235,10 +223,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
       (_) => false,
     );
   }
-
-  // -------------------------------------------------------------------------
-  // Build
-  // -------------------------------------------------------------------------
 
   @override
   Widget build(BuildContext context) {
@@ -366,7 +350,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
           const SizedBox(height: 24),
 
-          // Danger zone
           ListTile(
             leading: const Icon(Icons.delete_forever, color: Colors.red),
             title: const Text('Delete Account', style: TextStyle(color: Colors.red)),

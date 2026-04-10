@@ -191,8 +191,6 @@ class _ConfigurationsScreenState extends State<ConfigurationsScreen> {
           backgroundColor: Colors.green,
         ),
       );
-
-      // Logout and navigate to login screen
       ConnectionManager().stop();
       await _authService.logout();
       if (!mounted) return;
@@ -254,7 +252,6 @@ class _ConfigurationsScreenState extends State<ConfigurationsScreen> {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          // Profile Section
           Card(
             child: Padding(
               padding: const EdgeInsets.all(16),
@@ -266,9 +263,7 @@ class _ConfigurationsScreenState extends State<ConfigurationsScreen> {
                     style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 16),
-                  
-                  // Username
-                  const Text(
+                                    const Text(
                     'Username',
                     style: TextStyle(fontSize: 12, color: Colors.grey),
                   ),
@@ -277,8 +272,6 @@ class _ConfigurationsScreenState extends State<ConfigurationsScreen> {
                     style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
                   ),
                   const SizedBox(height: 16),
-                  
-                  // Email
                   const Text(
                     'Email',
                     style: TextStyle(fontSize: 12, color: Colors.grey),
@@ -288,8 +281,6 @@ class _ConfigurationsScreenState extends State<ConfigurationsScreen> {
                     style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
                   ),
                   const SizedBox(height: 16),
-                  
-                  // Role
                   const Text(
                     'Role',
                     style: TextStyle(fontSize: 12, color: Colors.grey),
@@ -299,8 +290,6 @@ class _ConfigurationsScreenState extends State<ConfigurationsScreen> {
                     style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
                   ),
                   const SizedBox(height: 24),
-                  
-                  // Edit Profile Button
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton.icon(
@@ -314,16 +303,12 @@ class _ConfigurationsScreenState extends State<ConfigurationsScreen> {
             ),
           ),
           const SizedBox(height: 24),
-
-          // Delete Account
           ListTile(
             leading: const Icon(Icons.delete_forever, color: Colors.red),
             title: const Text('Delete Account', style: TextStyle(color: Colors.red)),
             subtitle: const Text('This action cannot be undone'),
             onTap: _deleteAccount,
           ),
-
-          // Logout
           const Divider(),
           ListTile(
             leading: const Icon(Icons.logout, color: Colors.red),

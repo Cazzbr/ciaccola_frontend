@@ -7,7 +7,6 @@ class ChatMessage {
   final bool isSentByMe;
   final bool isQueued;
   final bool deleted;
-  /// Local file path for audio messages; null for text messages.
   final String? audioPath;
 
   const ChatMessage({

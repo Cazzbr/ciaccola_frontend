@@ -5,11 +5,6 @@ import 'package:ciaccola_frontend/screens/splash_screen.dart';
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // On Flutter web, hot restart leaves a requestAnimationFrame already queued
-  // in the browser that fires after EngineFlutterView.dispose() completes.
-  // The resulting "Trying to render a disposed EngineFlutterView" assertion is
-  // a development-only engine artifact — it cannot be prevented from app code.
-  // Filter it out specifically so it doesn't obscure real errors.
   if (kIsWeb) {
     final original = FlutterError.onError;
     FlutterError.onError = (FlutterErrorDetails details) {

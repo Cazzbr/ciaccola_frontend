@@ -24,8 +24,6 @@ class _HomeScreenState extends State<HomeScreen> {
   final _manager = ConnectionManager();
   final _contactService = ContactService();
   StreamSubscription? _eventSub;
-
-  // Cache contact name lookups so repeated messages don't require API calls.
   final Map<String, String> _contactNames = {};
 
   @override
@@ -36,7 +34,6 @@ class _HomeScreenState extends State<HomeScreen> {
       ContactsScreen(token: widget.token),
       ProfileScreen(token: widget.token),
     ];
-    // Subscribe after first frame so Overlay is ready.
     WidgetsBinding.instance.addPostFrameCallback((_) => _startListening());
   }
 
@@ -55,7 +52,6 @@ class _HomeScreenState extends State<HomeScreen> {
 
     if (event is IncomingMessageEvent) {
       final contactId = event.message.contactId;
-      // Suppress if the user is already in that chat.
       if (_manager.activeChatContactId == contactId) return;
       final name = await _resolveContactName(contactId);
       if (!mounted) return;
@@ -80,10 +76,6 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  // -------------------------------------------------------------------------
-  // Helpers
-  // -------------------------------------------------------------------------
-
   Future<String> _resolveContactName(String contactId) async {
     if (_contactNames.containsKey(contactId)) return _contactNames[contactId]!;
     try {
@@ -96,8 +88,6 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _openChat(String contactId, String name) {
-    // Build a minimal Contact stub for navigation — the ChatScreen only needs
-    // id, name, and username for display; ConnectionManager owns the peer.
     final contact = Contact(
       id: contactId,
       username: name,
@@ -116,10 +106,6 @@ class _HomeScreenState extends State<HomeScreen> {
   void _goToChats() {
     if (mounted) setState(() => _selectedIndex = 0);
   }
-
-  // -------------------------------------------------------------------------
-  // Build
-  // -------------------------------------------------------------------------
 
   @override
   Widget build(BuildContext context) {

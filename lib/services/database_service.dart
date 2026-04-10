@@ -10,8 +10,6 @@ class DatabaseService {
   static const messagesTable = 'messages';
   static const invitesTable = 'contact_invites';
 
-  /// Call this when a user logs in (or switches accounts). Closes any open
-  /// database so the next access re-opens with the correct per-user file.
   static Future<void> switchUser(String userId) async {
     if (_activeUserId == userId) return;
     await _db?.close();
@@ -73,10 +71,6 @@ class DatabaseService {
       ),
     );
   }
-
-  // -------------------------------------------------------------------------
-  // Messages
-  // -------------------------------------------------------------------------
 
   Future<void> insertMessage(ChatMessage message) async {
     final db = await database;
@@ -148,10 +142,6 @@ class DatabaseService {
     );
     return rows.map((row) => row['contactId'] as String).toList();
   }
-
-  // -------------------------------------------------------------------------
-  // Contact invites
-  // -------------------------------------------------------------------------
 
   Future<void> insertInvite(ContactInvite invite) async {
     final db = await database;
