@@ -79,6 +79,24 @@ class _ContactsScreenState extends State<ContactsScreen> {
     return name.isNotEmpty ? name[0].toUpperCase() : '?';
   }
 
+  Future<void> _acceptInvite(Contact contact) async {
+    try {
+      await _contactService.acceptInvite(widget.token, contact.username);
+      await _load();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to accept invite: $e')),
+        );
+      }
+    }
+  }
+
+  void _dismissInvite(Contact contact) {
+    setState(() => _contacts.removeWhere((c) => c.id == contact.id));
+    _filter();
+  }
+
   Future<void> _toggleBlock(Contact contact) async {
     if (contact.subDocId.isEmpty) return;
     try {
@@ -94,6 +112,9 @@ class _ContactsScreenState extends State<ContactsScreen> {
   }
 
   void _showAddContactDialog() {
+    // Build a lookup of existing relationship statuses by contact ID.
+    final existingStatus = { for (final c in _contacts) c.id: c.status };
+
     final contactController = TextEditingController();
     bool isSearching = false;
     bool isAdding = false;
@@ -114,9 +135,11 @@ class _ContactsScreenState extends State<ContactsScreen> {
             try {
               final results = await _contactService.searchUsers(widget.token, term, limit: 12);
               if (!mounted || !dialogContext.mounted) return;
+              // Filter out the logged-in user — they can't add themselves.
+              final filtered = results.where((r) => r.id != _currentUserId).toList();
               dialogSetState(() {
-                searchResults = results;
-                if (results.isEmpty) errorMessage = 'No users found for "$term".';
+                searchResults = filtered;
+                if (filtered.isEmpty) errorMessage = 'No users found for "$term".';
               });
             } catch (e) {
               if (!mounted || !dialogContext.mounted) return;
@@ -180,20 +203,26 @@ class _ContactsScreenState extends State<ContactsScreen> {
                       child: SingleChildScrollView(
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
-                          children: searchResults.map((result) => Column(
-                            children: [
-                              ListTile(
-                                contentPadding: EdgeInsets.zero,
-                                title: Text(result.name),
-                                subtitle: Text(result.status.isEmpty ? 'User' : result.status),
-                                trailing: ElevatedButton(
-                                  onPressed: isAdding ? null : () => addUser(result),
-                                  child: const Text('Add'),
+                          children: searchResults.map((result) {
+                            final status = existingStatus[result.id];
+                            final alreadyLinked = status != null;
+                            return Column(
+                              children: [
+                                ListTile(
+                                  contentPadding: EdgeInsets.zero,
+                                  title: Text(result.name),
+                                  subtitle: Text(result.username),
+                                  trailing: alreadyLinked
+                                      ? _RelationChip(status: status)
+                                      : ElevatedButton(
+                                          onPressed: isAdding ? null : () => addUser(result),
+                                          child: const Text('Add'),
+                                        ),
                                 ),
-                              ),
-                              const Divider(height: 1),
-                            ],
-                          )).toList(),
+                                const Divider(height: 1),
+                              ],
+                            );
+                          }).toList(),
                         ),
                       ),
                     ),
@@ -302,6 +331,8 @@ class _ContactsScreenState extends State<ContactsScreen> {
                                   currentUserId: _currentUserId,
                                   token: widget.token,
                                   onBlock: () => _toggleBlock(contact),
+                                  onAccept: () => _acceptInvite(contact),
+                                  onIgnore: () => _dismissInvite(contact),
                                 );
                               },
                             ),
@@ -323,6 +354,8 @@ class _ContactTile extends StatelessWidget {
   final String currentUserId;
   final String token;
   final VoidCallback onBlock;
+  final VoidCallback onAccept;
+  final VoidCallback onIgnore;
 
   const _ContactTile({
     required this.contact,
@@ -330,6 +363,8 @@ class _ContactTile extends StatelessWidget {
     required this.currentUserId,
     required this.token,
     required this.onBlock,
+    required this.onAccept,
+    required this.onIgnore,
   });
 
   @override
@@ -430,17 +465,50 @@ class _ContactTile extends StatelessWidget {
                   ),
                 )
               else if (isInvited)
-                const Padding(
-                  padding: EdgeInsets.only(right: 4),
-                  child: Tooltip(
-                    message: 'They want to connect — see Chats',
-                    child: Icon(Icons.person_add, size: 18, color: Colors.blue),
-                  ),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextButton(
+                      onPressed: onIgnore,
+                      style: TextButton.styleFrom(foregroundColor: Colors.grey),
+                      child: const Text('Ignore'),
+                    ),
+                    FilledButton(
+                      onPressed: onAccept,
+                      child: const Text('Accept'),
+                    ),
+                  ],
                 ),
             ],
           ),
         ),
       ),
+    );
+  }
+}
+
+// Shown in the search dialog for users already in the contact list.
+class _RelationChip extends StatelessWidget {
+  final String status;
+  const _RelationChip({required this.status});
+
+  @override
+  Widget build(BuildContext context) {
+    final (label, color) = switch (status) {
+      'accepted' => ('Contact', const Color(0xFF22C55E)),
+      'pending'  => ('Invite sent', Colors.orange),
+      'invited'  => ('Invited you', Colors.blue),
+      'blocked'  => ('Blocked', Colors.red),
+      _          => (status, Colors.grey),
+    };
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: color.withValues(alpha: 0.4)),
+      ),
+      child: Text(label, style: TextStyle(fontSize: 12, color: color, fontWeight: FontWeight.w500)),
     );
   }
 }

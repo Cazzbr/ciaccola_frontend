@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:ciaccola_frontend/models/chat_message.dart';
 import 'package:ciaccola_frontend/models/contact.dart';
 import 'package:ciaccola_frontend/screens/chat_screen.dart';
+import 'package:ciaccola_frontend/services/auth_service.dart';
 import 'package:ciaccola_frontend/services/connection_manager.dart';
 import 'package:ciaccola_frontend/services/contact_service.dart';
 import 'package:ciaccola_frontend/services/database_service.dart';
@@ -17,15 +18,19 @@ class ChatsScreen extends StatefulWidget {
 }
 
 class _ChatsScreenState extends State<ChatsScreen> {
+  final _authService = AuthService();
   final _contactService = ContactService();
   final _db = DatabaseService();
   final _manager = ConnectionManager();
+
+  final _searchController = TextEditingController();
 
   bool _loading = true;
   String? _error;
 
   List<Contact> _allContacts = [];
   List<Contact> _chats = [];
+  List<Contact> _filteredChats = [];
   List<Contact> _invites = [];
   final Map<String, ChatMessage> _lastMessages = {};
 
@@ -41,10 +46,12 @@ class _ChatsScreenState extends State<ChatsScreen> {
   void initState() {
     super.initState();
     _load();
+    _searchController.addListener(_filter);
   }
 
   @override
   void dispose() {
+    _searchController.dispose();
     _eventSub?.cancel();
     _heartbeat?.cancel();
     super.dispose();
@@ -53,7 +60,15 @@ class _ChatsScreenState extends State<ChatsScreen> {
   Future<void> _load() async {
     try {
       _currentUserId = _extractUserId(widget.token) ?? 'me';
+
+      // Fetch contacts; also try to read the premium flag from profile.
       _allContacts = await _contactService.fetchContacts(widget.token);
+      try {
+        final profile = await _authService.getProfile(widget.token);
+        _manager.isPremium = profile.role == 'premium';
+      } catch (_) {
+        // Non-fatal — premium features just won't show if profile fails.
+      }
 
       // Only start WebRTC for accepted contacts.
       final accepted = _allContacts.where((c) => c.status == 'accepted').toList();
@@ -121,9 +136,20 @@ class _ChatsScreenState extends State<ChatsScreen> {
     });
 
     if (!mounted) return;
+    final q = _searchController.text.toLowerCase();
     setState(() {
       _chats = chats;
+      _filteredChats = q.isEmpty ? chats : chats.where((c) => c.name.toLowerCase().contains(q)).toList();
       _lastMessages..clear()..addAll(resolved);
+    });
+  }
+
+  void _filter() {
+    final q = _searchController.text.toLowerCase();
+    setState(() {
+      _filteredChats = _chats
+          .where((c) => c.name.toLowerCase().contains(q))
+          .toList();
     });
   }
 
@@ -253,46 +279,71 @@ class _ChatsScreenState extends State<ChatsScreen> {
           ? const Center(child: CircularProgressIndicator())
           : _error != null
               ? Center(child: Text(_error!))
-              : _invites.isEmpty && _chats.isEmpty
-                  ? const Center(
-                      child: Text(
-                        'No chats yet.\nStart a conversation from Contacts.',
-                        textAlign: TextAlign.center,
+              : Column(
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+                      child: TextField(
+                        controller: _searchController,
+                        decoration: InputDecoration(
+                          hintText: 'Search chats...',
+                          prefixIcon: const Icon(Icons.search),
+                          filled: true,
+                          fillColor: const Color(0xFF1C2447),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide.none,
+                          ),
+                          contentPadding: const EdgeInsets.symmetric(vertical: 0),
+                        ),
                       ),
-                    )
-                  : ListView(
-                      children: [
-                        // Pinned invite cards
-                        ..._invites.map((contact) => _InviteCard(
-                              contact: contact,
-                              onAccept: () => _acceptInvite(contact),
-                              onIgnore: () => _dismissInvite(contact),
-                            )),
-
-                        // Chat tiles
-                        ..._chats.map((contact) => _ChatTile(
-                              contact: contact,
-                              lastMessage: _lastMessages[contact.id],
-                              avatarColor: _avatarColor(contact.id),
-                              initials: _initials(contact.name),
-                              statusDotColor: _statusDotColor(contact),
-                              presenceLine: _presenceLine(contact),
-                              formatTime: _formatMessageTime,
-                              onTap: () async {
-                                await Navigator.of(context).push(
-                                  MaterialPageRoute(
-                                    builder: (_) => ChatScreen(
-                                      token: widget.token,
-                                      currentUserId: _currentUserId,
-                                      contact: contact,
-                                    ),
-                                  ),
-                                );
-                                _refreshChats();
-                              },
-                            )),
-                      ],
                     ),
+                    Expanded(
+                      child: _invites.isEmpty && _chats.isEmpty
+                          ? const Center(
+                              child: Text(
+                                'No chats yet.\nStart a conversation from Contacts.',
+                                textAlign: TextAlign.center,
+                              ),
+                            )
+                          : _filteredChats.isEmpty && _invites.isEmpty
+                              ? const Center(child: Text('No chats found.'))
+                              : ListView(
+                                  children: [
+                                    // Pinned invite cards
+                                    ..._invites.map((contact) => _InviteCard(
+                                          contact: contact,
+                                          onAccept: () => _acceptInvite(contact),
+                                          onIgnore: () => _dismissInvite(contact),
+                                        )),
+
+                                    // Chat tiles
+                                    ..._filteredChats.map((contact) => _ChatTile(
+                                          contact: contact,
+                                          lastMessage: _lastMessages[contact.id],
+                                          avatarColor: _avatarColor(contact.id),
+                                          initials: _initials(contact.name),
+                                          statusDotColor: _statusDotColor(contact),
+                                          presenceLine: _presenceLine(contact),
+                                          formatTime: _formatMessageTime,
+                                          onTap: () async {
+                                            await Navigator.of(context).push(
+                                              MaterialPageRoute(
+                                                builder: (_) => ChatScreen(
+                                                  token: widget.token,
+                                                  currentUserId: _currentUserId,
+                                                  contact: contact,
+                                                ),
+                                              ),
+                                            );
+                                            _refreshChats();
+                                          },
+                                        )),
+                                  ],
+                                ),
+                    ),
+                  ],
+                ),
     );
   }
 }

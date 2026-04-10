@@ -35,21 +35,19 @@ class WebRtcService {
     });
 
     _peerConnection!.onIceCandidate = (candidate) {
+      if (_closed) return;
       debugPrint('[WebRTC] local ICE candidate: ${candidate.toMap()}');
-      try {
-        _candidateController.add(candidate);
-      } catch (_) {debugPrint('[_channelStateController] error');}
-
+      try { _candidateController.add(candidate); } catch (_) {}
     };
 
     _peerConnection!.onConnectionState = (state) {
+      if (_closed) return;
       debugPrint('[WebRTC] connection state: $state');
-      try {
-        _stateController.add(state);
-      } catch (_) {debugPrint('[_channelStateController] error');}
+      try { _stateController.add(state); } catch (_) {}
     };
 
     _peerConnection!.onDataChannel = (channel) {
+      if (_closed) return;
       debugPrint('[WebRTC] remote data channel received: ${channel.label}');
       _attachDataChannel(channel);
     };
@@ -75,19 +73,19 @@ class WebRtcService {
     }
 
     channel.onDataChannelState = (state) {
+      if (_closed) return;
       debugPrint('[WebRTC] data channel state changed: $state');
-      try {
-        _channelStateController.add(state);
-      } catch (_) {debugPrint('[_channelStateController] error');}
+      try { _channelStateController.add(state); } catch (_) {}
     };
     channel.onMessage = (message) {
+      if (_closed) return;
       final raw = message.text;
       debugPrint('[WebRTC] data channel message received: $raw');
       try {
         final decoded = jsonDecode(raw) as Map<String, dynamic>;
         _messageController.add(decoded);
       } catch (_) {
-        _messageController.add({'type': 'text', 'text': raw});
+        try { _messageController.add({'type': 'text', 'text': raw}); } catch (_) {}
       }
     };
   }

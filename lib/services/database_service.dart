@@ -6,9 +6,20 @@ import 'database_factory.dart';
 
 class DatabaseService {
   static sqlite_api.Database? _db;
-  static const _dbName = 'p2p_chat.db';
+  static String? _activeUserId;
   static const messagesTable = 'messages';
   static const invitesTable = 'contact_invites';
+
+  /// Call this when a user logs in (or switches accounts). Closes any open
+  /// database so the next access re-opens with the correct per-user file.
+  static Future<void> switchUser(String userId) async {
+    if (_activeUserId == userId) return;
+    await _db?.close();
+    _db = null;
+    _activeUserId = userId;
+  }
+
+  String get _dbName => 'p2p_chat_${_activeUserId ?? 'default'}.db';
 
   Future<sqlite_api.Database> get database async {
     _db ??= await _init();
@@ -20,7 +31,7 @@ class DatabaseService {
     return databaseFactory.openDatabase(
       path,
       options: sqlite_api.OpenDatabaseOptions(
-        version: 2,
+        version: 3,
         onCreate: (db, version) async {
           await db.execute('''
             CREATE TABLE $messagesTable (
@@ -31,7 +42,8 @@ class DatabaseService {
               timestamp INTEGER NOT NULL,
               isSentByMe INTEGER NOT NULL DEFAULT 0,
               isQueued INTEGER NOT NULL DEFAULT 0,
-              deleted INTEGER NOT NULL DEFAULT 0
+              deleted INTEGER NOT NULL DEFAULT 0,
+              audioPath TEXT
             )
           ''');
           await db.execute('''
@@ -51,6 +63,11 @@ class DatabaseService {
                 timestamp INTEGER NOT NULL
               )
             ''');
+          }
+          if (oldVersion < 3) {
+            await db.execute(
+              'ALTER TABLE $messagesTable ADD COLUMN audioPath TEXT',
+            );
           }
         },
       ),

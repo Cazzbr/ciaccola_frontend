@@ -1,7 +1,13 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:ciaccola_frontend/models/contact.dart';
+import 'package:ciaccola_frontend/screens/chat_screen.dart';
 import 'package:ciaccola_frontend/screens/chats_screen.dart';
 import 'package:ciaccola_frontend/screens/contacts_screen.dart';
 import 'package:ciaccola_frontend/screens/profile_screen.dart';
+import 'package:ciaccola_frontend/services/connection_manager.dart';
+import 'package:ciaccola_frontend/services/contact_service.dart';
+import 'package:ciaccola_frontend/widgets/notification_banner.dart';
 
 class HomeScreen extends StatefulWidget {
   final String token;
@@ -13,8 +19,14 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   int _selectedIndex = 0;
-
   late final List<Widget> _screens;
+
+  final _manager = ConnectionManager();
+  final _contactService = ContactService();
+  StreamSubscription? _eventSub;
+
+  // Cache contact name lookups so repeated messages don't require API calls.
+  final Map<String, String> _contactNames = {};
 
   @override
   void initState() {
@@ -24,13 +36,90 @@ class _HomeScreenState extends State<HomeScreen> {
       ContactsScreen(token: widget.token),
       ProfileScreen(token: widget.token),
     ];
+    // Subscribe after first frame so Overlay is ready.
+    WidgetsBinding.instance.addPostFrameCallback((_) => _startListening());
   }
 
-  void _onItemTapped(int index) {
-    setState(() {
-      _selectedIndex = index;
-    });
+  @override
+  void dispose() {
+    _eventSub?.cancel();
+    super.dispose();
   }
+
+  void _startListening() {
+    _eventSub = _manager.events.listen(_handleEvent);
+  }
+
+  Future<void> _handleEvent(ConnectionEvent event) async {
+    if (!mounted) return;
+
+    if (event is IncomingMessageEvent) {
+      final contactId = event.message.contactId;
+      // Suppress if the user is already in that chat.
+      if (_manager.activeChatContactId == contactId) return;
+      final name = await _resolveContactName(contactId);
+      if (!mounted) return;
+      NotificationBanner.show(
+        context,
+        icon: Icons.message,
+        iconColor: const Color(0xFF3B82F6),
+        title: name,
+        body: event.message.text,
+        onTap: () => _openChat(contactId, name),
+      );
+    } else if (event is ContactInviteReceivedEvent) {
+      if (!mounted) return;
+      NotificationBanner.show(
+        context,
+        icon: Icons.person_add,
+        iconColor: const Color(0xFF22C55E),
+        title: 'New contact request',
+        body: '${event.fromUsername} wants to connect with you.',
+        onTap: () => _goToChats(),
+      );
+    }
+  }
+
+  // -------------------------------------------------------------------------
+  // Helpers
+  // -------------------------------------------------------------------------
+
+  Future<String> _resolveContactName(String contactId) async {
+    if (_contactNames.containsKey(contactId)) return _contactNames[contactId]!;
+    try {
+      final contacts = await _contactService.fetchContacts(widget.token);
+      for (final c in contacts) {
+        _contactNames[c.id] = c.name.isNotEmpty ? c.name : c.username;
+      }
+    } catch (_) {}
+    return _contactNames[contactId] ?? contactId;
+  }
+
+  void _openChat(String contactId, String name) {
+    // Build a minimal Contact stub for navigation — the ChatScreen only needs
+    // id, name, and username for display; ConnectionManager owns the peer.
+    final contact = Contact(
+      id: contactId,
+      username: name,
+      name: name,
+      status: 'accepted',
+    );
+    Navigator.of(context).push(MaterialPageRoute(
+      builder: (_) => ChatScreen(
+        token: widget.token,
+        currentUserId: _manager.currentUserId ?? '',
+        contact: contact,
+      ),
+    ));
+  }
+
+  void _goToChats() {
+    if (mounted) setState(() => _selectedIndex = 0);
+  }
+
+  // -------------------------------------------------------------------------
+  // Build
+  // -------------------------------------------------------------------------
 
   @override
   Widget build(BuildContext context) {
@@ -38,21 +127,12 @@ class _HomeScreenState extends State<HomeScreen> {
       body: _screens[_selectedIndex],
       bottomNavigationBar: BottomNavigationBar(
         items: const <BottomNavigationBarItem>[
-          BottomNavigationBarItem(
-            icon: Icon(Icons.chat),
-            label: 'Chats',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.contacts),
-            label: 'Contacts',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.person),
-            label: 'Profile',
-          ),
+          BottomNavigationBarItem(icon: Icon(Icons.chat), label: 'Chats'),
+          BottomNavigationBarItem(icon: Icon(Icons.contacts), label: 'Contacts'),
+          BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profile'),
         ],
         currentIndex: _selectedIndex,
-        onTap: _onItemTapped,
+        onTap: (i) => setState(() => _selectedIndex = i),
       ),
     );
   }

@@ -1,5 +1,8 @@
 import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/foundation.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:ciaccola_frontend/models/chat_message.dart';
 import 'package:ciaccola_frontend/models/contact.dart';
@@ -31,12 +34,12 @@ class MessageDeletedEvent extends ConnectionEvent {
 
 /// Queued messages for [contactId] were just flushed through the data channel.
 class MessagesDeliveredEvent extends ConnectionEvent {
-  const MessagesDeliveredEvent(String contactId) : super(contactId);
+  const MessagesDeliveredEvent(super.contactId);
 }
 
 /// The contact explicitly went offline (socket user-offline signal received).
 class ContactOfflineEvent extends ConnectionEvent {
-  const ContactOfflineEvent(String contactId) : super(contactId);
+  const ContactOfflineEvent(super.contactId);
 }
 
 /// Someone sent us a contact invite (socket: contact-invite { from: username }).
@@ -115,6 +118,15 @@ class ConnectionManager {
   Stream<ConnectionEvent> get events => _eventsController.stream;
 
   bool get isRunning => _currentUserId != null;
+  String? get currentUserId => _currentUserId;
+
+  /// The contactId whose ChatScreen is currently visible, or null.
+  /// Set by ChatScreen on open/close to suppress redundant notifications.
+  String? activeChatContactId;
+
+  /// Whether the current user has a premium account.
+  /// Set by ChatsScreen after fetching the user profile.
+  bool isPremium = false;
 
   // -------------------------------------------------------------------------
   // Lifecycle
@@ -137,6 +149,9 @@ class ConnectionManager {
     }
 
     _currentUserId = currentUserId;
+    // Scope the local database to this user so different accounts on the same
+    // device never share message history.
+    await DatabaseService.switchUser(currentUserId);
 
     if (!_signaling.connected) {
       _signaling.connect(token: token);
@@ -212,6 +227,20 @@ class ConnectionManager {
     if (peer != null && peer.isReady) {
       await _flushQueuedMessages(contactId, peer);
     }
+  }
+
+  /// Decodes a base64-encoded audio payload. On web, returns a data URI
+  /// directly (no file system available). On native, writes to disk and
+  /// returns the file path.
+  Future<String> _saveIncomingAudio(String messageId, String base64Data) async {
+    if (kIsWeb) {
+      return 'data:audio/ogg;base64,$base64Data';
+    }
+    final dir = await getApplicationDocumentsDirectory();
+    await dir.create(recursive: true);
+    final file = File('${dir.path}/audio_$messageId.ogg');
+    await file.writeAsBytes(base64Decode(base64Data));
+    return file.path;
   }
 
   /// Send a JSON payload through the data channel for [contactId].
@@ -298,17 +327,37 @@ class ConnectionManager {
 
     subs.add(peer.onMessage.listen((payload) async {
       final type = payload['type']?.toString() ?? 'text';
+      final ts = payload['timestamp'] is int
+          ? payload['timestamp'] as int
+          : DateTime.now().millisecondsSinceEpoch;
+
       if (type == 'text') {
         final message = ChatMessage(
           messageId: payload['messageId'].toString(),
           contactId: contactId,
           text: payload['text'].toString(),
-          timestamp: payload['timestamp'] is int
-              ? payload['timestamp'] as int
-              : DateTime.now().millisecondsSinceEpoch,
+          timestamp: ts,
           isSentByMe: false,
           isQueued: false,
           deleted: false,
+        );
+        await _db.insertMessage(message);
+        _emit(IncomingMessageEvent(message));
+      } else if (type == 'audio') {
+        // Decode base64 audio and save to a local file.
+        final audioPath = await _saveIncomingAudio(
+          payload['messageId'].toString(),
+          payload['audioBase64'].toString(),
+        );
+        final message = ChatMessage(
+          messageId: payload['messageId'].toString(),
+          contactId: contactId,
+          text: '',
+          timestamp: ts,
+          isSentByMe: false,
+          isQueued: false,
+          deleted: false,
+          audioPath: audioPath,
         );
         await _db.insertMessage(message);
         _emit(IncomingMessageEvent(message));

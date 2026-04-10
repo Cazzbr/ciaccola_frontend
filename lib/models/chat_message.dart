@@ -7,6 +7,8 @@ class ChatMessage {
   final bool isSentByMe;
   final bool isQueued;
   final bool deleted;
+  /// Local file path for audio messages; null for text messages.
+  final String? audioPath;
 
   const ChatMessage({
     this.localId,
@@ -17,7 +19,10 @@ class ChatMessage {
     required this.isSentByMe,
     required this.isQueued,
     required this.deleted,
+    this.audioPath,
   });
+
+  bool get isAudio => audioPath != null && audioPath!.isNotEmpty;
 
   factory ChatMessage.fromMap(Map<String, dynamic> map) {
     return ChatMessage(
@@ -29,6 +34,7 @@ class ChatMessage {
       isSentByMe: (map['isSentByMe'] as int? ?? 0) == 1,
       isQueued: (map['isQueued'] as int? ?? 0) == 1,
       deleted: (map['deleted'] as int? ?? 0) == 1,
+      audioPath: map['audioPath'] as String?,
     );
   }
 
@@ -42,6 +48,7 @@ class ChatMessage {
       'isSentByMe': isSentByMe ? 1 : 0,
       'isQueued': isQueued ? 1 : 0,
       'deleted': deleted ? 1 : 0,
+      'audioPath': audioPath,
     };
   }
 
@@ -54,6 +61,7 @@ class ChatMessage {
     bool? isSentByMe,
     bool? isQueued,
     bool? deleted,
+    String? audioPath,
   }) {
     return ChatMessage(
       localId: localId ?? this.localId,
@@ -64,6 +72,7 @@ class ChatMessage {
       isSentByMe: isSentByMe ?? this.isSentByMe,
       isQueued: isQueued ?? this.isQueued,
       deleted: deleted ?? this.deleted,
+      audioPath: audioPath ?? this.audioPath,
     );
   }
 }
