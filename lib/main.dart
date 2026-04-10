@@ -1,19 +1,8 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:ciaccola_frontend/screens/splash_screen.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
-
-  if (kIsWeb) {
-    final original = FlutterError.onError;
-    FlutterError.onError = (FlutterErrorDetails details) {
-      if (details.exceptionAsString().contains('disposed EngineFlutterView')) {
-        return;
-      }
-      original?.call(details);
-    };
-  }
 
   runApp(const ChatApp());
 }
