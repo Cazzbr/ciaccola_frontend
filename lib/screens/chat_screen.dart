@@ -234,8 +234,7 @@ class _ChatScreenState extends State<ChatScreen> {
     if (kIsWeb) {
       path = '';
     } else {
-      final dir = await getApplicationDocumentsDirectory();
-      await dir.create(recursive: true);
+      final dir = await getTemporaryDirectory();
       final ext = _isDesktop ? 'ogg' : 'aac';
       path = '${dir.path}/rec_${_uuid.v4()}.$ext';
     }
@@ -292,12 +291,13 @@ class _ChatScreenState extends State<ChatScreen> {
       bytes = await File(filePath).readAsBytes();
     }
     final base64Audio = base64Encode(bytes);
+    if (!kIsWeb) File(filePath).deleteSync();
     final messageId = _uuid.v4();
     final ts = DateTime.now().millisecondsSinceEpoch;
 
-    final localAudioPath = kIsWeb
-        ? 'data:audio/webm;base64,$base64Audio'
-        : filePath;
+    final ext = filePath.endsWith('.ogg') ? 'ogg' : (filePath.endsWith('.aac') ? 'aac' : 'webm');
+    final mime = ext == 'ogg' ? 'audio/ogg' : (ext == 'aac' ? 'audio/aac' : 'audio/webm');
+    final localAudioPath = 'data:$mime;base64,$base64Audio';
 
     final message = ChatMessage(
       messageId: messageId,
