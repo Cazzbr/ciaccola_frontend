@@ -1,5 +1,7 @@
 import 'dart:convert';
+import 'dart:typed_data';
 import 'package:http/http.dart' as http;
+import 'package:http_parser/http_parser.dart';
 import 'package:ciaccola_frontend/configs/api_config.dart';
 import 'package:ciaccola_frontend/services/secure_storage_service.dart';
 import 'package:ciaccola_frontend/models/user.dart';
@@ -139,6 +141,44 @@ class AuthService {
 
     final data = jsonDecode(response.body) as Map<String, dynamic>;
     return User.fromJson(data);
+  }
+
+  /// Uploads a profile photo. Returns the base64 data URI of the saved photo.
+  Future<String> uploadPhoto(String token, Uint8List bytes, String filename) async {
+    final lower = filename.toLowerCase();
+    final subtype = lower.endsWith('.png')
+        ? 'png'
+        : lower.endsWith('.webp')
+            ? 'webp'
+            : 'jpeg';
+
+    final request = http.MultipartRequest(
+      'PUT',
+      Uri.parse('${ApiConfig.baseHttpUrl}${ApiConfig.uploadPhotoPath}'),
+    );
+    request.headers['Authorization'] = 'Bearer $token';
+    request.files.add(
+      http.MultipartFile.fromBytes(
+        'photo',
+        bytes,
+        filename: filename,
+        contentType: MediaType('image', subtype),
+      ),
+    );
+
+    final streamed = await request.send();
+    final response = await http.Response.fromStream(streamed);
+
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw Exception('Failed to upload photo: ${response.statusCode} - ${response.body}');
+    }
+
+    final data = jsonDecode(response.body) as Map<String, dynamic>;
+    final photo = data['photo']?.toString();
+    if (photo == null || photo.isEmpty) {
+      throw Exception('No photo in upload response');
+    }
+    return photo;
   }
 
   Future<void> deleteProfile(String token) async {

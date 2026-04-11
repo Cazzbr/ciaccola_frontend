@@ -5,6 +5,7 @@ class Contact {
   final String name;
   final String status;
   final String? lastSeen;
+  final String? photo;
 
   const Contact({
     this.subDocId = '',
@@ -13,6 +14,7 @@ class Contact {
     required this.name,
     this.status = 'pending',
     this.lastSeen,
+    this.photo,
   });
 
   Contact copyWith({String? status}) => Contact(
@@ -22,6 +24,7 @@ class Contact {
         name: name,
         status: status ?? this.status,
         lastSeen: lastSeen,
+        photo: photo,
       );
 
   factory Contact.fromJson(Map<String, dynamic> json) {
@@ -35,6 +38,7 @@ class Contact {
         name: contactId['username']?.toString() ?? '',
         status: json['status']?.toString() ?? 'pending',
         lastSeen: contactId['last_seen']?.toString(),
+        photo: contactId['photo']?.toString(),
       );
     }
 
@@ -45,6 +49,7 @@ class Contact {
       name: json['username']?.toString() ?? '',
       status: json['status']?.toString() ?? '',
       lastSeen: json['last_seen']?.toString(),
+      photo: json['photo']?.toString(),
     );
   }
 }

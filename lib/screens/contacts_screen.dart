@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:ciaccola_frontend/models/contact.dart';
 import 'package:ciaccola_frontend/screens/chat_screen.dart';
 import 'package:ciaccola_frontend/services/contact_service.dart';
+import 'package:ciaccola_frontend/widgets/user_avatar.dart';
 
 class ContactsScreen extends StatefulWidget {
   final String token;
@@ -70,12 +71,6 @@ class _ContactsScreenState extends State<ContactsScreen> {
     } catch (_) {
       return null;
     }
-  }
-
-  String _getInitials(String name) {
-    final parts = name.trim().split(RegExp(r'\s+'));
-    if (parts.length >= 2) return '${parts[0][0]}${parts[1][0]}'.toUpperCase();
-    return name.isNotEmpty ? name[0].toUpperCase() : '?';
   }
 
   Future<void> _acceptInvite(Contact contact) async {
@@ -322,7 +317,6 @@ class _ContactsScreenState extends State<ContactsScreen> {
                                 final contact = _filtered[index];
                                 return _ContactTile(
                                   contact: contact,
-                                  initials: _getInitials(contact.name),
                                   currentUserId: _currentUserId,
                                   token: widget.token,
                                   onBlock: () => _toggleBlock(contact),
@@ -341,7 +335,6 @@ class _ContactsScreenState extends State<ContactsScreen> {
 
 class _ContactTile extends StatelessWidget {
   final Contact contact;
-  final String initials;
   final String currentUserId;
   final String token;
   final VoidCallback onBlock;
@@ -350,7 +343,6 @@ class _ContactTile extends StatelessWidget {
 
   const _ContactTile({
     required this.contact,
-    required this.initials,
     required this.currentUserId,
     required this.token,
     required this.onBlock,
@@ -389,19 +381,13 @@ class _ContactTile extends StatelessWidget {
           child: Row(
             children: [
               // Avatar
-              CircleAvatar(
+              UserAvatar(
+                name: contact.name,
+                photo: contact.photo,
                 radius: 24,
                 backgroundColor: isBlocked
                     ? Colors.grey.shade700
                     : theme.colorScheme.primary,
-                child: Text(
-                  initials,
-                  style: TextStyle(
-                    color: isBlocked ? Colors.grey.shade400 : Colors.white,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16,
-                  ),
-                ),
               ),
               const SizedBox(width: 14),
               Expanded(

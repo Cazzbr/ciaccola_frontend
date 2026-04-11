@@ -8,6 +8,7 @@ import 'package:ciaccola_frontend/services/auth_service.dart';
 import 'package:ciaccola_frontend/services/connection_manager.dart';
 import 'package:ciaccola_frontend/services/contact_service.dart';
 import 'package:ciaccola_frontend/services/database_service.dart';
+import 'package:ciaccola_frontend/widgets/user_avatar.dart';
 
 class ChatsScreen extends StatefulWidget {
   final String token;
@@ -190,12 +191,6 @@ class _ChatsScreenState extends State<ChatsScreen> {
   Color _avatarColor(String id) =>
       _avatarPalette[id.hashCode.abs() % _avatarPalette.length];
 
-  String _initials(String name) {
-    final parts = name.trim().split(RegExp(r'\s+'));
-    if (parts.length >= 2) return '${parts[0][0]}${parts[1][0]}'.toUpperCase();
-    return name.isNotEmpty ? name[0].toUpperCase() : '?';
-  }
-
   Color _statusDotColor(Contact contact) {
     return _manager.isChannelReady(contact.id)
         ? const Color(0xFF22C55E)
@@ -294,7 +289,6 @@ class _ChatsScreenState extends State<ChatsScreen> {
                                           contact: contact,
                                           lastMessage: _lastMessages[contact.id],
                                           avatarColor: _avatarColor(contact.id),
-                                          initials: _initials(contact.name),
                                           statusDotColor: _statusDotColor(contact),
                                           presenceLine: _presenceLine(contact),
                                           formatTime: _formatMessageTime,
@@ -344,7 +338,7 @@ class _InviteCard extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         child: Row(
           children: [
-            Icon(Icons.person_add, color: theme.colorScheme.secondary),
+            UserAvatar(name: contact.username, photo: contact.photo, radius: 20),
             const SizedBox(width: 12),
             Expanded(
               child: Column(
@@ -383,7 +377,6 @@ class _ChatTile extends StatelessWidget {
   final Contact contact;
   final ChatMessage? lastMessage;
   final Color avatarColor;
-  final String initials;
   final Color statusDotColor;
   final String presenceLine;
   final String Function(int) formatTime;
@@ -393,7 +386,6 @@ class _ChatTile extends StatelessWidget {
     required this.contact,
     required this.lastMessage,
     required this.avatarColor,
-    required this.initials,
     required this.statusDotColor,
     required this.presenceLine,
     required this.formatTime,
@@ -414,17 +406,11 @@ class _ChatTile extends StatelessWidget {
             Stack(
               clipBehavior: Clip.none,
               children: [
-                CircleAvatar(
+                UserAvatar(
+                  name: contact.name,
+                  photo: contact.photo,
                   radius: 26,
                   backgroundColor: avatarColor,
-                  child: Text(
-                    initials,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
-                    ),
-                  ),
                 ),
                 Positioned(
                   right: 0,

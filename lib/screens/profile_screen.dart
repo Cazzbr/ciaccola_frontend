@@ -1,8 +1,12 @@
+import 'dart:io';
+import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:ciaccola_frontend/screens/login_screen.dart';
 import 'package:ciaccola_frontend/services/auth_service.dart';
 import 'package:ciaccola_frontend/services/connection_manager.dart';
 import 'package:ciaccola_frontend/models/user.dart';
+import 'package:ciaccola_frontend/widgets/user_avatar.dart';
 
 class ProfileScreen extends StatefulWidget {
   final String token;
@@ -18,6 +22,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   bool _loading = true;
   String? _error;
   bool _updatingRole = false;
+  bool _uploadingPhoto = false;
 
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
@@ -68,7 +73,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       );
       if (mounted) {
         setState(() {
-          _user = updated;
+          _user = updated.copyWith(photo: _user?.photo);
           _passwordController.clear();
           _confirmPasswordController.clear();
         });
@@ -81,6 +86,56 @@ class _ProfileScreenState extends State<ProfileScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Failed to update profile: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _pickAndUploadPhoto() async {
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['jpg', 'jpeg', 'png', 'webp'],
+      withData: true,
+    );
+
+    if (result == null || result.files.isEmpty) return;
+
+    final file = result.files.first;
+    final Uint8List? bytes;
+    if (file.bytes != null) {
+      bytes = file.bytes;
+    } else if (!kIsWeb && file.path != null) {
+      bytes = await File(file.path!).readAsBytes();
+    } else {
+      bytes = null;
+    }
+
+    if (bytes == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not read selected file')),
+        );
+      }
+      return;
+    }
+
+    if (mounted) setState(() => _uploadingPhoto = true);
+    try {
+      final newPhoto = await _authService.uploadPhoto(widget.token, bytes, file.name);
+      if (mounted) {
+        setState(() {
+          _user = _user?.copyWith(photo: newPhoto);
+          _uploadingPhoto = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Photo updated'), backgroundColor: Colors.green),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _uploadingPhoto = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to upload photo: $e')),
         );
       }
     }
@@ -137,7 +192,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     setState(() => _updatingRole = true);
     try {
       final updated = await _authService.updateProfile(widget.token, role: newRole);
-      if (mounted) setState(() => _user = updated);
+      if (mounted) setState(() => _user = updated.copyWith(photo: _user?.photo));
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -264,6 +319,46 @@ class _ProfileScreenState extends State<ProfileScreen> {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
+          // Photo avatar
+          Center(
+            child: Stack(
+              alignment: Alignment.bottomRight,
+              children: [
+                _uploadingPhoto
+                    ? const SizedBox(
+                        width: 96,
+                        height: 96,
+                        child: CircularProgressIndicator(strokeWidth: 3),
+                      )
+                    : GestureDetector(
+                        onTap: _pickAndUploadPhoto,
+                        child: UserAvatar(
+                          name: _user?.username ?? '',
+                          photo: _user?.photo,
+                          radius: 48,
+                        ),
+                      ),
+                if (!_uploadingPhoto)
+                  GestureDetector(
+                    onTap: _pickAndUploadPhoto,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).colorScheme.primary,
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: Theme.of(context).scaffoldBackgroundColor,
+                          width: 2,
+                        ),
+                      ),
+                      padding: const EdgeInsets.all(6),
+                      child: const Icon(Icons.camera_alt, size: 16, color: Colors.white),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 20),
+
           // Profile info
           Card(
             child: Padding(

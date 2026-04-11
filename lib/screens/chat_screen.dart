@@ -11,6 +11,7 @@ import 'package:record/record.dart';
 import 'package:ciaccola_frontend/models/chat_message.dart';
 import 'package:ciaccola_frontend/models/contact.dart';
 import 'package:ciaccola_frontend/configs/api_config.dart';
+import 'package:ciaccola_frontend/widgets/user_avatar.dart';
 import 'package:ciaccola_frontend/services/connection_manager.dart';
 import 'package:ciaccola_frontend/services/database_service.dart';
 import 'package:ciaccola_frontend/services/socket_signaling_service.dart';
@@ -398,7 +399,17 @@ class _ChatScreenState extends State<ChatScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.contact.name),
+        title: Row(
+          children: [
+            UserAvatar(
+              name: widget.contact.name,
+              photo: widget.contact.photo,
+              radius: 18,
+            ),
+            const SizedBox(width: 10),
+            Text(widget.contact.name),
+          ],
+        ),
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(28),
           child: Padding(

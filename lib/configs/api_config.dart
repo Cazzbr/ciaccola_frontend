@@ -6,4 +6,5 @@ class ApiConfig {
   static const String registerPath = '/api/auth/register';
   static const String validateTokenPath = '/api/users/profile';
   static const String profilePath = '/api/users/profile';
+  static const String uploadPhotoPath = '/api/users/photo';
 }
