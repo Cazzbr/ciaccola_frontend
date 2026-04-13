@@ -5,6 +5,7 @@ import 'package:http_parser/http_parser.dart';
 import 'package:ciaccola_frontend/configs/api_config.dart';
 import 'package:ciaccola_frontend/services/secure_storage_service.dart';
 import 'package:ciaccola_frontend/models/user.dart';
+import 'package:ciaccola_frontend/utils/jwt_utils.dart';
 
 class AuthService {
   Future<String> login({required String username, required String password}) async {
@@ -59,7 +60,7 @@ class AuthService {
     final token = await SecureStorageService.getToken();
     if (token == null || token.isEmpty) return false;
 
-    final exp = _jwtExpiration(token);
+    final exp = JwtUtils.extractExpiration(token);
     if (exp != null && DateTime.now().isAfter(exp)) {
       await logout();
       return false;
@@ -76,21 +77,6 @@ class AuthService {
     } catch (_) {}
 
     return exp != null && DateTime.now().isBefore(exp);
-  }
-
-  DateTime? _jwtExpiration(String token) {
-    try {
-      final parts = token.split('.');
-      if (parts.length != 3) return null;
-      final normalized = base64Url.normalize(parts[1]);
-      final payload = jsonDecode(utf8.decode(base64Url.decode(normalized))) as Map<String, dynamic>;
-      final exp = payload['exp'];
-      if (exp is int) return DateTime.fromMillisecondsSinceEpoch(exp * 1000);
-      if (exp is String) return DateTime.fromMillisecondsSinceEpoch(int.parse(exp) * 1000);
-      return null;
-    } catch (_) {
-      return null;
-    }
   }
 
   Future<void> logout() async {
@@ -143,7 +129,6 @@ class AuthService {
     return User.fromJson(data);
   }
 
-  /// Uploads a profile photo. Returns the base64 data URI of the saved photo.
   Future<String> uploadPhoto(String token, Uint8List bytes, String filename) async {
     final lower = filename.toLowerCase();
     final subtype = lower.endsWith('.png')

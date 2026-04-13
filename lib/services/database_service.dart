@@ -6,12 +6,16 @@ import 'database_factory_io.dart'
     if (dart.library.html) 'database_factory_web.dart';
 
 class DatabaseService {
-  static sqlite_api.Database? _db;
-  static String? _activeUserId;
+  static final _instance = DatabaseService._internal();
+  factory DatabaseService() => _instance;
+  DatabaseService._internal();
+
+  sqlite_api.Database? _db;
+  String? _activeUserId;
   static const messagesTable = 'messages';
   static const invitesTable = 'contact_invites';
 
-  static Future<void> switchUser(String userId) async {
+  Future<void> switchUser(String userId) async {
     if (_activeUserId == userId) return;
     await _db?.close();
     _db = null;

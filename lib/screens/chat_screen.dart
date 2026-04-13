@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
-import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
@@ -14,7 +13,8 @@ import 'package:ciaccola_frontend/configs/api_config.dart';
 import 'package:ciaccola_frontend/widgets/user_avatar.dart';
 import 'package:ciaccola_frontend/services/connection_manager.dart';
 import 'package:ciaccola_frontend/services/database_service.dart';
-import 'package:ciaccola_frontend/services/socket_signaling_service.dart';
+import 'package:ciaccola_frontend/widgets/audio_player_widget.dart';
+import 'package:ciaccola_frontend/widgets/pulsing_dot.dart';
 import 'package:uuid/uuid.dart';
 
 class ChatScreen extends StatefulWidget {
@@ -35,7 +35,6 @@ class ChatScreen extends StatefulWidget {
 
 class _ChatScreenState extends State<ChatScreen> {
   final _manager = ConnectionManager();
-  final _signaling = SocketSignalingService();
   final _db = DatabaseService();
   final _controller = TextEditingController();
   final _scrollController = ScrollController();
@@ -52,7 +51,7 @@ class _ChatScreenState extends State<ChatScreen> {
 
   final AudioRecorder _recorder = AudioRecorder();
   bool _isRecording = false;
-  bool _isStartingRecording = false; // true while _startRecording() is in-flight
+  bool _isStartingRecording = false;
   bool _recordCancelled = false;
   int _recordSeconds = 0;
   Timer? _recordTimer;
@@ -100,22 +99,15 @@ class _ChatScreenState extends State<ChatScreen> {
         _updateStatusFromPeerState(event.state);
       } else if (event is ChannelStateChangedEvent) {
         _updateStatusFromChannelState(event.state);
+      } else if (event is TypingEvent) {
+        setState(() => _peerTyping = true);
+        _typingDisplayTimer?.cancel();
+        _typingDisplayTimer = Timer(const Duration(seconds: 3), () {
+          if (mounted) setState(() => _peerTyping = false);
+        });
+      } else if (event is StopTypingEvent) {
+        setState(() => _peerTyping = false);
       }
-    });
-
-    _listen(_signaling.onTyping, (room) {
-      if (room != _roomId) return;
-      if (!mounted) return;
-      setState(() => _peerTyping = true);
-      _typingDisplayTimer?.cancel();
-      _typingDisplayTimer = Timer(const Duration(seconds: 3), () {
-        if (mounted) setState(() => _peerTyping = false);
-      });
-    });
-
-    _listen(_signaling.onStopTyping, (room) {
-      if (room != _roomId) return;
-      if (mounted) setState(() => _peerTyping = false);
     });
   }
 
@@ -160,7 +152,7 @@ class _ChatScreenState extends State<ChatScreen> {
 
     _typingStopTimer?.cancel();
     if (_typingSent) {
-      _signaling.sendStopTyping(room: _roomId);
+      _manager.sendStopTyping(widget.contact.id);
       _typingSent = false;
     }
 
@@ -193,14 +185,13 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   void _onTextChanged(String value) {
-    if (!_signaling.connected) return;
     if (!_typingSent) {
-      _signaling.sendTyping(room: _roomId);
+      _manager.sendTyping(widget.contact.id);
       _typingSent = true;
     }
     _typingStopTimer?.cancel();
     _typingStopTimer = Timer(const Duration(seconds: 2), () {
-      _signaling.sendStopTyping(room: _roomId);
+      _manager.sendStopTyping(widget.contact.id);
       _typingSent = false;
     });
   }
@@ -338,18 +329,7 @@ class _ChatScreenState extends State<ChatScreen> {
       headers: {'Authorization': 'Bearer ${widget.token}'},
     ).catchError((_) => http.Response('', 500));
 
-    if (_manager.isChannelReady(widget.contact.id)) {
-      await _manager.sendJson(widget.contact.id, {
-        'type': 'delete',
-        'messageId': message.messageId,
-      });
-    } else if (_signaling.connected) {
-      _signaling.sendDelete(
-        to: widget.contact.id,
-        from: widget.currentUserId,
-        messageId: message.messageId,
-      );
-    }
+    await _manager.sendDeleteMessage(widget.contact.id, message.messageId);
   }
 
   Future<void> _showDeleteDialog(ChatMessage message) async {
@@ -471,7 +451,7 @@ class _ChatScreenState extends State<ChatScreen> {
                 mine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
             children: [
               message.isAudio
-                  ? _AudioPlayer(path: message.audioPath!)
+                  ? AudioPlayerWidget(path: message.audioPath!)
                   : Text(message.text,
                       style: const TextStyle(color: Colors.white)),
               const SizedBox(height: 4),
@@ -599,7 +579,7 @@ class _ChatScreenState extends State<ChatScreen> {
           padding: const EdgeInsets.symmetric(horizontal: 20),
           child: Row(
             children: [
-              const _PulsingDot(),
+              const PulsingDot(),
               const SizedBox(width: 12),
               Text(
                 _formatDuration(_recordSeconds),
@@ -607,7 +587,6 @@ class _ChatScreenState extends State<ChatScreen> {
                     fontWeight: FontWeight.w600, fontSize: 16),
               ),
               const Spacer(),
-              // Cancel
               GestureDetector(
                 onTap: () {
                   _recordCancelled = true;
@@ -617,7 +596,6 @@ class _ChatScreenState extends State<ChatScreen> {
                     color: Colors.red, size: 28),
               ),
               const SizedBox(width: 16),
-              // Send
               GestureDetector(
                 onTap: () => _stopRecording(send: true),
                 child: Container(
@@ -644,154 +622,3 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 }
 
-class _AudioPlayer extends StatefulWidget {
-  final String path;
-  const _AudioPlayer({required this.path});
-
-  @override
-  State<_AudioPlayer> createState() => _AudioPlayerState();
-}
-
-class _AudioPlayerState extends State<_AudioPlayer> {
-  final _player = AudioPlayer();
-  bool _playing = false;
-  Duration _position = Duration.zero;
-  Duration _duration = Duration.zero;
-  final List<StreamSubscription> _subs = [];
-
-  @override
-  void initState() {
-    super.initState();
-    _subs.add(_player.onPlayerStateChanged.listen((s) {
-      if (mounted) setState(() => _playing = s == PlayerState.playing);
-    }));
-    _subs.add(_player.onPositionChanged.listen((p) {
-      if (mounted) setState(() => _position = p);
-    }));
-    _subs.add(_player.onDurationChanged.listen((d) {
-      if (mounted) setState(() => _duration = d);
-    }));
-    _subs.add(_player.onPlayerComplete.listen((_) {
-      if (mounted) setState(() { _playing = false; _position = Duration.zero; });
-    }));
-  }
-
-  @override
-  void dispose() {
-    for (final s in _subs) {
-      s.cancel();
-    }
-    _player.dispose();
-    super.dispose();
-  }
-
-  String _fmt(Duration d) {
-    final m = d.inMinutes.remainder(60).toString().padLeft(2, '0');
-    final s = d.inSeconds.remainder(60).toString().padLeft(2, '0');
-    return '$m:$s';
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final progress = _duration.inMilliseconds > 0
-        ? _position.inMilliseconds / _duration.inMilliseconds
-        : 0.0;
-
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        GestureDetector(
-          onTap: () async {
-            if (_playing) {
-              await _player.pause();
-            } else {
-              final source = (widget.path.startsWith('data:') || widget.path.startsWith('blob:'))
-                  ? UrlSource(widget.path)
-                  : DeviceFileSource(widget.path);
-              await _player.play(source);
-            }
-          },
-          child: Icon(
-            _playing ? Icons.pause_circle : Icons.play_circle,
-            color: Colors.white,
-            size: 36,
-          ),
-        ),
-        const SizedBox(width: 8),
-        SizedBox(
-          width: 140,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              SliderTheme(
-                data: SliderTheme.of(context).copyWith(
-                  thumbShape:
-                      const RoundSliderThumbShape(enabledThumbRadius: 6),
-                  trackHeight: 3,
-                  overlayShape: SliderComponentShape.noOverlay,
-                ),
-                child: Slider(
-                  value: progress.clamp(0.0, 1.0),
-                  onChanged: (v) async {
-                    final pos = _duration * v;
-                    await _player.seek(pos);
-                  },
-                  activeColor: Colors.white,
-                  inactiveColor: Colors.white38,
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 4),
-                child: Text(
-                  '${_fmt(_position)} / ${_fmt(_duration)}',
-                  style: const TextStyle(color: Colors.white70, fontSize: 11),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _PulsingDot extends StatefulWidget {
-  const _PulsingDot();
-  @override
-  State<_PulsingDot> createState() => _PulsingDotState();
-}
-
-class _PulsingDotState extends State<_PulsingDot>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _ctrl;
-
-  @override
-  void initState() {
-    super.initState();
-    _ctrl = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 700),
-    )..repeat(reverse: true);
-  }
-
-  @override
-  void dispose() {
-    _ctrl.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return FadeTransition(
-      opacity: _ctrl,
-      child: Container(
-        width: 12,
-        height: 12,
-        decoration: const BoxDecoration(
-          color: Colors.red,
-          shape: BoxShape.circle,
-        ),
-      ),
-    );
-  }
-}

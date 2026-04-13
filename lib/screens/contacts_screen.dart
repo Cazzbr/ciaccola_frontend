@@ -249,7 +249,6 @@ class _ContactsScreenState extends State<ContactsScreen> {
       ),
       body: Column(
         children: [
-          // Search bar
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
             child: TextField(
@@ -382,7 +381,6 @@ class _ContactTile extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           child: Row(
             children: [
-              // Avatar
               UserAvatar(
                 name: contact.name,
                 photo: contact.photo,

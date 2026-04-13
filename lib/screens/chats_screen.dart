@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:ciaccola_frontend/models/chat_message.dart';
 import 'package:ciaccola_frontend/models/contact.dart';
@@ -8,11 +7,14 @@ import 'package:ciaccola_frontend/services/auth_service.dart';
 import 'package:ciaccola_frontend/services/connection_manager.dart';
 import 'package:ciaccola_frontend/services/contact_service.dart';
 import 'package:ciaccola_frontend/services/database_service.dart';
+import 'package:ciaccola_frontend/utils/jwt_utils.dart';
 import 'package:ciaccola_frontend/widgets/user_avatar.dart';
 
 class ChatsScreen extends StatefulWidget {
   final String token;
-  const ChatsScreen({super.key, required this.token});
+  final void Function(Map<String, String> nameById)? onContactsLoaded;
+
+  const ChatsScreen({super.key, required this.token, this.onContactsLoaded});
 
   @override
   State<ChatsScreen> createState() => _ChatsScreenState();
@@ -65,8 +67,9 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
 
   Future<void> _load() async {
     try {
-      _currentUserId = _extractUserId(widget.token) ?? 'me';
+      _currentUserId = JwtUtils.extractUserId(widget.token) ?? 'me';
       _allContacts = await _contactService.fetchContacts(widget.token);
+      _notifyContactsLoaded();
       try {
         final profile = await _authService.getProfile(widget.token);
         _manager.isPremium = profile.role == 'premium';
@@ -107,8 +110,18 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
     }
   }
 
+  void _notifyContactsLoaded() {
+    if (widget.onContactsLoaded == null) return;
+    final names = {
+      for (final c in _allContacts)
+        c.id: c.name.isNotEmpty ? c.name : c.username,
+    };
+    widget.onContactsLoaded!(names);
+  }
+
   Future<void> _reloadContacts() async {
     _allContacts = await _contactService.fetchContacts(widget.token);
+    _notifyContactsLoaded();
     final accepted = _allContacts.where((c) => c.status == 'accepted').toList();
     for (final c in accepted) {
       _manager.addContact(c);
@@ -174,21 +187,6 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
 
   void _dismissInvite(Contact contact) {
     if (mounted) setState(() => _invites.removeWhere((c) => c.id == contact.id));
-  }
-  String? _extractUserId(String token) {
-    try {
-      final parts = token.split('.');
-      if (parts.length != 3) return null;
-      final payload = jsonDecode(
-        utf8.decode(base64Url.decode(base64Url.normalize(parts[1]))),
-      );
-      if (payload is Map<String, dynamic>) {
-        return payload['userId']?.toString() ?? payload['sub']?.toString();
-      }
-      return null;
-    } catch (_) {
-      return null;
-    }
   }
 
   static const _avatarPalette = [
@@ -288,7 +286,6 @@ class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
                               ? const Center(child: Text('No chats found.'))
                               : ListView(
                                   children: [
-                                    // Pinned invite cards
                                     ..._invites.map((contact) => _InviteCard(
                                           contact: contact,
                                           onAccept: () => _acceptInvite(contact),

@@ -319,7 +319,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          // Photo avatar
           Center(
             child: Stack(
               alignment: Alignment.bottomRight,
@@ -358,8 +357,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
           ),
           const SizedBox(height: 20),
-
-          // Profile info
           Card(
             child: Padding(
               padding: const EdgeInsets.all(16),
@@ -388,8 +385,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
           ),
           const SizedBox(height: 16),
-
-          // Subscription
           Card(
             child: Padding(
               padding: const EdgeInsets.all(16),

@@ -55,14 +55,12 @@ class _LoginScreenState extends State<LoginScreen> {
             child: Column(
               children: [
                 const SizedBox(height: 24),
-                // Logo
                 Image.asset(
                   'lib/assets/ciaccola_app_logo.png',
                   height: 250,
                   fit: BoxFit.contain,
                 ),
                 const SizedBox(height: 48),
-                // Form Card
                 Container(
                   padding: const EdgeInsets.all(24),
                   decoration: BoxDecoration(
@@ -75,7 +73,6 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                   child: Column(
                     children: [
-                      // Username field
                       SizedBox(
                         height: 60,
                         child: TextField(
@@ -88,7 +85,6 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                       ),
                       const SizedBox(height: 16),
-                      // Password field
                       SizedBox(
                         height: 60,
                         child: TextField(
@@ -104,7 +100,6 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                       ),
                       const SizedBox(height: 24),
-                      // Error message
                       if (_error != null)
                         Padding(
                           padding: const EdgeInsets.only(bottom: 16),
@@ -123,7 +118,6 @@ class _LoginScreenState extends State<LoginScreen> {
                             ),
                           ),
                         ),
-                      // Login button
                       SizedBox(
                         width: double.infinity,
                         height: 48,

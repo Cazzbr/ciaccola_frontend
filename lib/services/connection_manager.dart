@@ -56,6 +56,14 @@ class ChannelStateChangedEvent extends ConnectionEvent {
       : super(contactId);
 }
 
+class TypingEvent extends ConnectionEvent {
+  const TypingEvent(super.contactId);
+}
+
+class StopTypingEvent extends ConnectionEvent {
+  const StopTypingEvent(super.contactId);
+}
+
 class ConnectionManager {
   static final _instance = ConnectionManager._internal();
   factory ConnectionManager() => _instance;
@@ -65,6 +73,7 @@ class ConnectionManager {
   final _db = DatabaseService();
 
   String? _currentUserId;
+  String? _token;
 
   final Map<String, WebRtcService> _peers = {};
 
@@ -104,7 +113,8 @@ class ConnectionManager {
     }
 
     _currentUserId = currentUserId;
-    await DatabaseService.switchUser(currentUserId);
+    _token = token;
+    await _db.switchUser(currentUserId);
 
     if (!_signaling.connected) {
       _signaling.connect(token: token);
@@ -162,6 +172,7 @@ class ConnectionManager {
     _offerSent.clear();
     _sendingOffer.clear();
     _currentUserId = null;
+    _token = null;
 
     _signaling.disconnect();
   }
@@ -175,6 +186,30 @@ class ConnectionManager {
     final peer = _peers[contactId];
     if (peer != null && peer.isReady) {
       await _flushQueuedMessages(contactId, peer);
+    }
+  }
+
+  void sendTyping(String contactId) {
+    final room = _rooms[contactId];
+    if (room == null) return;
+    _signaling.sendTyping(room: room);
+  }
+
+  void sendStopTyping(String contactId) {
+    final room = _rooms[contactId];
+    if (room == null) return;
+    _signaling.sendStopTyping(room: room);
+  }
+
+  Future<void> sendDeleteMessage(String contactId, String messageId) async {
+    if (isChannelReady(contactId)) {
+      await sendJson(contactId, {'type': 'delete', 'messageId': messageId});
+    } else if (_signaling.connected && _currentUserId != null) {
+      _signaling.sendDelete(
+        to: contactId,
+        from: _currentUserId!,
+        messageId: messageId,
+      );
     }
   }
 
@@ -416,10 +451,29 @@ class ConnectionManager {
       _emit(ContactAcceptedEvent(byUsername));
     }));
 
+    _subs.add(_signaling.onTyping.listen((room) {
+      final contactId = _contactIdForRoom(room);
+      if (contactId == null) return;
+      _emit(TypingEvent(contactId));
+    }));
+
+    _subs.add(_signaling.onStopTyping.listen((room) {
+      final contactId = _contactIdForRoom(room);
+      if (contactId == null) return;
+      _emit(StopTypingEvent(contactId));
+    }));
+
     _subs.add(_signaling.onUserOffline.listen((data) {
       final from = data['from']?.toString();
       if (from == null || !_rooms.containsKey(from)) return;
       _emit(ContactOfflineEvent(from));
+    }));
+
+    _subs.add(_signaling.onDisconnect.listen((_) async {
+      if (_currentUserId == null || _token == null) return;
+      await Future.delayed(const Duration(seconds: 3));
+      if (_currentUserId == null || _token == null) return;
+      reconnect(_token!);
     }));
 
     _subs.add(_signaling.onDelete.listen((data) async {

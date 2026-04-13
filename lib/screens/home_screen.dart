@@ -6,7 +6,6 @@ import 'package:ciaccola_frontend/screens/chats_screen.dart';
 import 'package:ciaccola_frontend/screens/contacts_screen.dart';
 import 'package:ciaccola_frontend/screens/profile_screen.dart';
 import 'package:ciaccola_frontend/services/connection_manager.dart';
-import 'package:ciaccola_frontend/services/contact_service.dart';
 import 'package:ciaccola_frontend/widgets/notification_banner.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -22,7 +21,6 @@ class _HomeScreenState extends State<HomeScreen> {
   late final List<Widget> _screens;
 
   final _manager = ConnectionManager();
-  final _contactService = ContactService();
   StreamSubscription? _eventSub;
   final Map<String, String> _contactNames = {};
 
@@ -30,7 +28,12 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
     _screens = [
-      ChatsScreen(token: widget.token),
+      ChatsScreen(
+        token: widget.token,
+        onContactsLoaded: (names) {
+          if (mounted) setState(() => _contactNames.addAll(names));
+        },
+      ),
       ContactsScreen(token: widget.token),
       ProfileScreen(token: widget.token),
     ];
@@ -47,13 +50,13 @@ class _HomeScreenState extends State<HomeScreen> {
     _eventSub = _manager.events.listen(_handleEvent);
   }
 
-  Future<void> _handleEvent(ConnectionEvent event) async {
+  void _handleEvent(ConnectionEvent event) {
     if (!mounted) return;
 
     if (event is IncomingMessageEvent) {
       final contactId = event.message.contactId;
       if (_manager.activeChatContactId == contactId) return;
-      final name = await _resolveContactName(contactId);
+      final name = _resolveContactName(contactId);
       if (!mounted) return;
       NotificationBanner.show(
         context,
@@ -76,14 +79,7 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  Future<String> _resolveContactName(String contactId) async {
-    if (_contactNames.containsKey(contactId)) return _contactNames[contactId]!;
-    try {
-      final contacts = await _contactService.fetchContacts(widget.token);
-      for (final c in contacts) {
-        _contactNames[c.id] = c.name.isNotEmpty ? c.name : c.username;
-      }
-    } catch (_) {}
+  String _resolveContactName(String contactId) {
     return _contactNames[contactId] ?? contactId;
   }
 

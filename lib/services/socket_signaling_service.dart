@@ -63,7 +63,7 @@ class SocketSignalingService {
       for (final room in _pendingRooms) {
         debugPrint('[Socket] joining pending room $room');
         _socket!.emit('join-room', {'room': room});
-        _roomJoinedController.add(room);
+        Future.microtask(() => _roomJoinedController.add(room));
       }
       _pendingRooms.clear();
     });
@@ -98,7 +98,7 @@ class SocketSignalingService {
     if (_socket?.connected == true) {
       debugPrint('[Socket] joining room $room');
       _socket!.emit('join-room', {'room': room});
-      _roomJoinedController.add(room);
+      Future.microtask(() => _roomJoinedController.add(room));
     } else {
       if (!_pendingRooms.contains(room)) _pendingRooms.add(room);
     }

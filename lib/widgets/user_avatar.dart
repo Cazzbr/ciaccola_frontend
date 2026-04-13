@@ -2,8 +2,6 @@ import 'dart:convert';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 
-/// Displays a circular avatar backed by a base64 photo data URI.
-/// Falls back to coloured initials when [photo] is null or invalid.
 class UserAvatar extends StatelessWidget {
   final String? photo;
   final String name;
