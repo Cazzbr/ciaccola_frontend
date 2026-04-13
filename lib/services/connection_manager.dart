@@ -124,6 +124,16 @@ class ConnectionManager {
     if (!_rooms.containsKey(contact.id)) _addContact(contact);
   }
 
+  void reconnect(String token) {
+    if (_currentUserId == null) return;
+    if (_signaling.connected) return;
+    _signaling.connect(token: token);
+    _signaling.joinRoom('user_$_currentUserId');
+    for (final roomId in _rooms.values) {
+      _signaling.joinRoom(roomId);
+    }
+  }
+
   void stop() {
     if (_currentUserId != null) {
       for (final entry in _rooms.entries) {
@@ -292,12 +302,25 @@ class ConnectionManager {
     final queued = await _db.getQueuedMessages(contactId);
     for (final message in queued) {
       if (!peer.isReady) break;
-      await peer.sendJson({
-        'type': 'text',
-        'messageId': message.messageId,
-        'text': message.text,
-        'timestamp': message.timestamp,
-      });
+      if (message.isAudio && message.audioPath != null) {
+        final dataUri = message.audioPath!;
+        final comma = dataUri.indexOf(',');
+        if (comma != -1) {
+          await peer.sendJson({
+            'type': 'audio',
+            'messageId': message.messageId,
+            'audioBase64': dataUri.substring(comma + 1),
+            'timestamp': message.timestamp,
+          });
+        }
+      } else {
+        await peer.sendJson({
+          'type': 'text',
+          'messageId': message.messageId,
+          'text': message.text,
+          'timestamp': message.timestamp,
+        });
+      }
       await _db.markMessageDelivered(message.messageId);
     }
     if (queued.isNotEmpty) {

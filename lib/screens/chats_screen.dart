@@ -18,7 +18,7 @@ class ChatsScreen extends StatefulWidget {
   State<ChatsScreen> createState() => _ChatsScreenState();
 }
 
-class _ChatsScreenState extends State<ChatsScreen> {
+class _ChatsScreenState extends State<ChatsScreen> with WidgetsBindingObserver {
   final _authService = AuthService();
   final _contactService = ContactService();
   final _db = DatabaseService();
@@ -42,16 +42,25 @@ class _ChatsScreenState extends State<ChatsScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _load();
     _searchController.addListener(_filter);
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _searchController.dispose();
     _eventSub?.cancel();
     _heartbeat?.cancel();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _manager.reconnect(widget.token);
+    }
   }
 
   Future<void> _load() async {

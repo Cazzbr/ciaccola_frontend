@@ -103,7 +103,8 @@ class _ChatScreenState extends State<ChatScreen> {
       }
     });
 
-    _listen(_signaling.onTyping, (_) {
+    _listen(_signaling.onTyping, (room) {
+      if (room != _roomId) return;
       if (!mounted) return;
       setState(() => _peerTyping = true);
       _typingDisplayTimer?.cancel();
@@ -112,7 +113,8 @@ class _ChatScreenState extends State<ChatScreen> {
       });
     });
 
-    _listen(_signaling.onStopTyping, (_) {
+    _listen(_signaling.onStopTyping, (room) {
+      if (room != _roomId) return;
       if (mounted) setState(() => _peerTyping = false);
     });
   }

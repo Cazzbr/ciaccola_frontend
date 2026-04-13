@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:ciaccola_frontend/models/contact.dart';
 import 'package:ciaccola_frontend/screens/chat_screen.dart';
+import 'package:ciaccola_frontend/services/connection_manager.dart';
 import 'package:ciaccola_frontend/services/contact_service.dart';
 import 'package:ciaccola_frontend/widgets/user_avatar.dart';
 
@@ -76,6 +77,7 @@ class _ContactsScreenState extends State<ContactsScreen> {
   Future<void> _acceptInvite(Contact contact) async {
     try {
       await _contactService.acceptInvite(widget.token, contact.username);
+      ConnectionManager().addContact(contact);
       await _load();
     } catch (e) {
       if (mounted) {

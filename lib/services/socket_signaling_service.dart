@@ -21,7 +21,7 @@ class SocketSignalingService {
   final _userJoinedController = StreamController<Map<String, dynamic>>.broadcast();
   final _audioOfferController = StreamController<Map<String, dynamic>>.broadcast();
   final _typingController = StreamController<String>.broadcast();
-  final _stopTypingController = StreamController<void>.broadcast();
+  final _stopTypingController = StreamController<String>.broadcast();
   final _deleteController = StreamController<Map<String, dynamic>>.broadcast();
   final _roomJoinedController = StreamController<String>.broadcast();
   final _userOfflineController = StreamController<Map<String, dynamic>>.broadcast();
@@ -36,7 +36,7 @@ class SocketSignalingService {
   Stream<Map<String, dynamic>> get onUserJoined => _userJoinedController.stream;
   Stream<Map<String, dynamic>> get onAudioOffer => _audioOfferController.stream;
   Stream<String> get onTyping => _typingController.stream;
-  Stream<void> get onStopTyping => _stopTypingController.stream;
+  Stream<String> get onStopTyping => _stopTypingController.stream;
   Stream<Map<String, dynamic>> get onDelete => _deleteController.stream;
   Stream<String> get onRoomJoined => _roomJoinedController.stream;
   Stream<Map<String, dynamic>> get onUserOffline => _userOfflineController.stream;
@@ -79,8 +79,14 @@ class SocketSignalingService {
     _socket!.on('ice-candidate', (data) => _candidateController.add(Map<String, dynamic>.from(data)));
     _socket!.on('user-joined', (data) => _userJoinedController.add(Map<String, dynamic>.from(data)));
     _socket!.on('audio-offer', (data) => _audioOfferController.add(Map<String, dynamic>.from(data)));
-    _socket!.on('typing', (data) => _typingController.add(data?.toString() ?? ''));
-    _socket!.on('stop-typing', (_) => _stopTypingController.add(null));
+    _socket!.on('typing', (data) {
+      final room = (data is Map) ? data['room']?.toString() ?? '' : '';
+      _typingController.add(room);
+    });
+    _socket!.on('stop-typing', (data) {
+      final room = (data is Map) ? data['room']?.toString() ?? '' : '';
+      _stopTypingController.add(room);
+    });
     _socket!.on('delete-message', (data) => _deleteController.add(Map<String, dynamic>.from(data)));
     _socket!.on('user-offline', (data) => _userOfflineController.add(Map<String, dynamic>.from(data)));
     _socket!.on('contact-invite', (data) => _contactInviteController.add(Map<String, dynamic>.from(data)));
@@ -94,11 +100,12 @@ class SocketSignalingService {
       _socket!.emit('join-room', {'room': room});
       _roomJoinedController.add(room);
     } else {
-      _pendingRooms.add(room);
+      if (!_pendingRooms.contains(room)) _pendingRooms.add(room);
     }
   }
 
   void disconnect() {
+    _pendingRooms.clear();
     _socket?.dispose();
     _socket = null;
   }
