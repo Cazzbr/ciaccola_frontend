@@ -2,7 +2,8 @@ import 'package:path/path.dart';
 import 'package:ciaccola_frontend/models/chat_message.dart';
 import 'package:ciaccola_frontend/models/contact_invite.dart';
 import 'package:sqflite_common/sqlite_api.dart' as sqlite_api;
-import 'database_factory.dart';
+import 'database_factory_io.dart'
+    if (dart.library.html) 'database_factory_web.dart';
 
 class DatabaseService {
   static sqlite_api.Database? _db;
@@ -25,8 +26,8 @@ class DatabaseService {
   }
 
   Future<sqlite_api.Database> _init() async {
-    final path = join(await databaseFactory.getDatabasesPath(), _dbName);
-    return databaseFactory.openDatabase(
+    final path = join(await databaseFactoryImpl.getDatabasesPath(), _dbName);
+    return databaseFactoryImpl.openDatabase(
       path,
       options: sqlite_api.OpenDatabaseOptions(
         version: 3,
