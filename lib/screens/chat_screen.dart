@@ -70,7 +70,7 @@ class _ChatScreenState extends State<ChatScreen> {
   void initState() {
     super.initState();
     _manager.activeChatContactId = widget.contact.id;
-    _status = _manager.isChannelReady(widget.contact.id) ? 'Online' : 'Connecting...';
+    _status = _manager.isChannelReady(widget.contact.id) ? 'Online' : 'offline';
     _init();
   }
 
