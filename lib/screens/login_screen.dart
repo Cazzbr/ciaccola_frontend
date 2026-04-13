@@ -94,6 +94,8 @@ class _LoginScreenState extends State<LoginScreen> {
                         child: TextField(
                           controller: _passwordController,
                           obscureText: true,
+                          textInputAction: TextInputAction.done,
+                          onSubmitted: (_) => _loading ? null : _login(),
                           decoration: const InputDecoration(
                             labelText: 'Password',
                             prefixIcon: Icon(Icons.lock),
